@@ -1,11 +1,9 @@
 '''
-synbiochem (c) University of Manchester 2016
+DNA++ (c) DNA++ 2017
 
-synbiochem is licensed under the MIT License.
+All rights reserved.
 
-To view a copy of this license, visit <http://opensource.org/licenses/MIT/>.
-
-@author:  neilswainston
+@author: neilswainston
 '''
 # pylint: disable=no-member
 # pylint: disable=ungrouped-imports
