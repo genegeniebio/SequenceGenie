@@ -21,7 +21,7 @@ def main():
     '''main method.'''
     from multiprocessing import Queue
     num = 10**4
-    length = 10**5
+    length = 10**4
     queue = Queue()
 
     start = time.time()

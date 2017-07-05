@@ -99,5 +99,9 @@ ENV/
 
 # mypy
 .mypy_cache/
+
 /.project
 /.pydevproject
+
+/**/*.fasta*
+/**/*.sam*
