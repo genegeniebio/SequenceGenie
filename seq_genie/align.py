@@ -40,7 +40,7 @@ class Aligner(object):
                     for record in SeqIO.parse(fle, 'fasta')}
 
         # Align and sort:
-        _sort(self.__mem(seqs, self.__templ_filename), 'align.sam')
+        _sort(self.__mem(seqs), 'align.sam')
 
     def __align(self, barcode, id_seqs):
         '''Aligns sequences in a given bin.'''
