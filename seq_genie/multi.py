@@ -1,5 +1,7 @@
 '''
-Created on 30 Jun 2017
+DNA++ (c) DNA++ 2017
+
+All rights reserved.
 
 @author: neilswainston
 '''
@@ -19,18 +21,18 @@ def rand_strings(num, length, queue):
 
 def main():
     '''main method.'''
-    from multiprocessing import Queue
     num = 10**4
     length = 10**4
-    queue = Queue()
 
+    # Single thread:
+    queue = mp.Queue()
     start = time.time()
     rand_strings(num, length, queue)
     print len(queue.get())
-    end = time.time()
-    print end - start
+    print time.time() - start
 
-    queue = Queue()
+    # Multi thread:
+    queue = mp.Queue()
     start = time.time()
 
     nprocs = mp.cpu_count()
@@ -49,8 +51,7 @@ def main():
         results.extend(queue.get())
 
     print len(results)
-    end = time.time()
-    print end - start
+    print time.time() - start
 
 
 if __name__ == '__main__':
