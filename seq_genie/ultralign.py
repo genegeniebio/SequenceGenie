@@ -8,10 +8,12 @@ All rights reserved.
 from collections import defaultdict
 import math
 import sys
+import time
 
 from Bio import pairwise2, SeqIO, Seq
 from synbiochem.utils import seq_utils
 
+import multiprocessing as mp
 import numpy as np
 
 
@@ -37,22 +39,49 @@ class Aligner():
 
         # Read sequences:
         with open(seqs_filename, 'rU') as fle:
-            self.__seqs = {record.id: str(record.seq)
-                           for record in SeqIO.parse(fle, 'fasta')}
+            self.__seqs = [[record.id, str(record.seq)]
+                           for record in SeqIO.parse(fle, 'fasta')]
 
         self.__nucl_probs = _get_nucl_probs()
         self.__pos_spec_probs = self.__get_pos_spec_probs(mut_strs)
 
     def align(self):
         '''Aligns sequences.'''
-        for seq_id, seq in self.__seqs.iteritems():
+        # Multi processor:
+        start = time.time()
+        queue = mp.Queue()
+        nprocs = mp.cpu_count()
+        procs = []
+
+        for chunk in _get_chunks(self.__seqs, nprocs):
+            proc = mp.Process(target=self.__align,
+                              args=(chunk, queue))
+            proc.Daemon = True
+            procs.append(proc)
+            proc.start()
+
+        results = {}
+
+        for _ in range(nprocs):
+            results.update(queue.get())
+
+        print len(results)
+        print time.time() - start
+
+    def __align(self, seqs, queue):
+        '''Aligns sequences.'''
+        alignments = {}
+
+        for seq_id, seq in seqs:
             best_aln = self.__get_align(seq)
             aln = self.__get_align(Seq.Seq(seq).reverse_complement())
 
             if aln[2] > best_aln[2]:
                 best_aln = aln
 
-            _process_aln(seq_id, best_aln)
+            alignments[seq_id] = best_aln
+
+        queue.put(alignments)
 
     def __get_pos_spec_probs(self, mut_strs):
         '''Gets position specific probabilities.'''
@@ -88,7 +117,7 @@ class Aligner():
         '''Parses mutation strings.'''
         mutations = []
 
-        if mutations is not None:
+        if mut_strs is not None:
             mutations = [seq_utils.parse_mutation(mut) for mut in mut_strs]
             mutations = [item for sublist in mutations for item in sublist]
 
@@ -108,6 +137,20 @@ class Aligner():
             return aln
 
         return ('', '', -1, -1)
+
+
+def _get_chunks(lst, num):
+    '''Split list into approximately equal chunks.'''
+    chunks = []
+
+    avg = len(lst) / float(num)
+    last = 0.0
+
+    while last < len(lst):
+        chunks.append(lst[int(last):int(last + avg)])
+        last += avg
+
+    return chunks
 
 
 def _get_nucl_probs():
