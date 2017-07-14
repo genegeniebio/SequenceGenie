@@ -32,7 +32,7 @@ class Aligner(object):
         # Index template:
         subprocess.call(['bwa', 'index', self.__templ_filename])
 
-    def align(self, seqs_filename, seq_filter=None, barcodes=None):
+    def align(self, seqs_filename):
         '''Aligns sequences in barcoded bins.'''
         # Read sequences:
         with open(seqs_filename, 'rU') as fle:
@@ -50,22 +50,10 @@ class Aligner(object):
         strip_id_seqs = seq_utils.read_fasta(fasta_strip_filename)
 
         # Align strip indels:
-        sam_strip_filename = _sort(self.__mem(strip_id_seqs), barcode + '.sam')
+        _sort(self.__mem(strip_id_seqs), barcode + '.sam')
 
         # Translate strip indels:
         _translate(strip_id_seqs, barcode + '_aa.fasta')
-
-        # Convert sam to bam:
-        # bam_filename = convert(sam_sort_filename)
-
-        # mpileup:
-        # mpileup_filename = _mpileup(sam_strip_filename, self.__templ_filename)
-
-        # call:
-        # _call(mpileup_filename, barcode + '.vcf')
-
-        # filter:
-        # _filter(call_filename, barcode + '.vcf')
 
     def __mem(self, id_seqs, out_filename=None, readtype='ont2d'):
         '''Runs BWA MEM.'''
@@ -99,7 +87,7 @@ class Aligner(object):
                            for pair in read.aligned_pairs
                            if pair[1] is not None])
 
-            if len(seq):
+            if seq:
                 yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
 
 

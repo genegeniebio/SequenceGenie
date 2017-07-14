@@ -7,20 +7,20 @@ All rights reserved.
 '''
 from collections import defaultdict
 import math
+import multiprocessing
 import sys
 import time
 
 from Bio import pairwise2, SeqIO, Seq
 from synbiochem.utils import seq_utils
 
-import multiprocessing as mp
 import numpy as np
 
 
 _NUCL_IDX = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
 
 
-class Aligner():
+class Aligner(object):
     '''Aligner class.'''
 
     def __init__(self, wt_filename, seqs_filename, mut_strs=None,
@@ -49,13 +49,13 @@ class Aligner():
         '''Aligns sequences.'''
         # Multi processor:
         start = time.time()
-        queue = mp.Queue()
-        nprocs = mp.cpu_count()
+        queue = multiprocessing.Queue()
+        nprocs = multiprocessing.cpu_count()
         procs = []
 
         for chunk in _get_chunks(self.__seqs, nprocs):
-            proc = mp.Process(target=self.__align,
-                              args=(chunk, queue))
+            proc = multiprocessing.Process(target=self.__align,
+                                           args=(chunk, queue))
             proc.Daemon = True
             procs.append(proc)
             proc.start()
@@ -96,7 +96,6 @@ class Aligner():
                     [(1 - self.__wt_prob) / (len(prob_mat) - 1)] * \
                     (len(prob_mat) - 1)
                 pos_spec_prob = list(np.dot(np.transpose(prob_mat), weights))
-                pass
             else:
                 pos_spec_prob = self.__nucl_probs[res]
 
@@ -172,7 +171,7 @@ def _process_aln(seq_id, aln):
     for idx, pos in enumerate(zip(*(aln[0], aln[1]))):
         alignment.append('|' if pos[0] == pos[1] else ' ')
 
-        if math.isnan(start) and pos[0] is not '-':
+        if math.isnan(start) and pos[0] != '-':
             start = idx
 
     print seq_id
@@ -182,7 +181,7 @@ def _process_aln(seq_id, aln):
     print
 
 
-class Matcher():
+class Matcher(object):
     '''Matcher class implements match_fn.'''
 
     def __init__(self, seq_len, pos_spec_probs):
