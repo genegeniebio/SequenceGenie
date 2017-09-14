@@ -15,8 +15,10 @@ import sys
 from Bio import SeqIO, Seq, SeqRecord
 from pysam import AlignmentFile
 from pysam import bcftools
-from synbiochem.utils import io_utils, seq_utils
 import pysam
+
+from seq_genie import utils
+from synbiochem.utils import io_utils, seq_utils
 
 
 class Aligner(object):
@@ -40,31 +42,22 @@ class Aligner(object):
                     for record in SeqIO.parse(fle, 'fasta')}
 
         # Align and sort:
-        _sort(self.__mem(seqs), 'align.sam')
+        utils.sort(self.__mem(seqs), 'align.sam')
 
     def __align(self, barcode, id_seqs):
         '''Aligns sequences in a given bin.'''
 
         # Align, sort and strip indels from file:
-        fasta_strip_filename = self.__strip_indels(_sort(self.__mem(id_seqs)))
+        fasta_strip_filename = \
+            self.__strip_indels(utils.sort(self.__mem(id_seqs)))
+
         strip_id_seqs = seq_utils.read_fasta(fasta_strip_filename)
 
         # Align strip indels:
-        _sort(self.__mem(strip_id_seqs), barcode + '.sam')
+        utils.sort(self.__mem(strip_id_seqs), barcode + '.sam')
 
         # Translate strip indels:
         _translate(strip_id_seqs, barcode + '_aa.fasta')
-
-    def __mem(self, id_seqs, out_filename=None, readtype='ont2d'):
-        '''Runs BWA MEM.'''
-        out_filename = io_utils.get_filename(out_filename)
-        seq_filename = seq_utils.write_fasta(id_seqs)
-
-        with open(out_filename, 'w') as out:
-            subprocess.call(['bwa', 'mem', '-x', readtype,
-                             self.__templ_filename, seq_filename], stdout=out)
-
-        return out_filename
 
     def __strip_indels(self, in_filename, out_filename=None):
         '''Strips spurious indels.'''
@@ -114,23 +107,6 @@ def _bin_seqs(barcodes, sequences, evalue=0.1):
                                 for seq_id, seq in sequences.iteritems()}
 
     return seq_bin
-
-
-def _sort(in_filename, out_filename):
-    '''Custom sorts SAM file.'''
-    sam_file = AlignmentFile(in_filename, 'r')
-    out_file = AlignmentFile(out_filename, 'wh',
-                             template=sam_file,
-                             header=sam_file.header)
-
-    for read in sorted([read for read in sam_file],
-                       key=lambda x: (-x.query_length,
-                                      x.reference_start)):
-        out_file.write(read)
-
-    out_file.close()
-
-    return out_filename
 
 
 def _convert(sam_filename, bam_filename=None):
@@ -192,9 +168,10 @@ def main(args):
     '''main method.'''
     aligner = Aligner(args[0])
 
-    seq_filter = args[2] if len(args) > 2 else None
-    barcodes = {value: value for value in args[3:]} if len(args) > 3 else None
-    aligner.align(args[1], seq_filter, barcodes)
+    # seq_filter = args[2] if len(args) > 2 else None
+    # barcodes = {value: value for value in args[3:]} \
+    #    if len(args) > 3 else None
+    aligner.align(args[1])
 
 
 if __name__ == '__main__':
