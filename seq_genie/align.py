@@ -13,7 +13,6 @@ import subprocess
 import sys
 
 from Bio import SeqIO, Seq, SeqRecord
-from pysam import AlignmentFile
 from pysam import bcftools
 import pysam
 

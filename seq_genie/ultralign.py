@@ -5,6 +5,10 @@ All rights reserved.
 
 @author: neilswainston
 '''
+# pylint: disable=invalid-name
+# pylint: disable=too-few-public-methods
+# pylint: disable=too-many-arguments
+# pylint: disable=too-many-instance-attributes
 from collections import defaultdict
 import math
 import multiprocessing
@@ -107,20 +111,10 @@ class Aligner(object):
         '''Gets mutations.'''
         mut_probs = defaultdict(list)
 
-        for mut in self.__parse_mut_strs(mut_strs):
+        for mut in _parse_mut_strs(mut_strs):
             mut_probs[mut[1]].append(self.__nucl_probs[mut[2]])
 
         return mut_probs
-
-    def __parse_mut_strs(self, mut_strs):
-        '''Parses mutation strings.'''
-        mutations = []
-
-        if mut_strs is not None:
-            mutations = [seq_utils.parse_mutation(mut) for mut in mut_strs]
-            mutations = [item for sublist in mutations for item in sublist]
-
-        return mutations
 
     def __get_align(self, seq):
         '''Gets alignment from seq.'''
@@ -161,6 +155,17 @@ def _get_nucl_probs():
             probs[ambig][_NUCL_IDX[nucl]] = 1.0 / len(nucls)
 
     return probs
+
+
+def _parse_mut_strs(mut_strs):
+    '''Parses mutation strings.'''
+    mutations = []
+
+    if mut_strs is not None:
+        mutations = [seq_utils.parse_mutation(mut) for mut in mut_strs]
+        mutations = [item for sublist in mutations for item in sublist]
+
+    return mutations
 
 
 def _process_aln(seq_id, aln):
