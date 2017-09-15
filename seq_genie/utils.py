@@ -9,13 +9,20 @@ All rights reserved.
 import os
 import subprocess
 import tempfile
-from Bio import SeqIO
+from Bio import Seq, SeqIO, SeqRecord
 
-from pysam import AlignmentFile
+from pysam import AlignmentFile, Samfile
+from synbiochem.utils import io_utils
+
+
+def parse(reads_filename):
+    '''Parse reads file.'''
+    _, ext = os.path.splitext(reads_filename)
+    return SeqIO.parse(reads_filename, ext[1:] if ext else 'fasta')
 
 
 def get_reads(dirs, min_length=0, dir_filter='pass'):
-    '''Converts fast5 files to fasta.'''
+    '''Converts fastq files to fasta.'''
     reads = []
 
     for directory in dirs:
@@ -72,3 +79,29 @@ def sort(in_filename, out_filename):
     out_file.close()
 
     return out_filename
+
+
+def strip_indels(sam_filename, templ_seq, out_filename=None):
+    '''Strips indels, replacing them with wildtype.'''
+    out_filename = io_utils.get_filename(out_filename)
+
+    with open(out_filename, 'w') as fle:
+        SeqIO.write(_sam_to_rec(sam_filename, templ_seq), fle, 'fasta')
+
+    return out_filename
+
+
+def _sam_to_rec(sam_filename, templ_seq):
+    '''Generator to convert sam files into Biopython SeqRecords.'''
+    sam_file = Samfile(sam_filename, 'r')
+
+    for read in sam_file:
+        # Perform mapping of nucl indices to remove spurious indels:
+        seq = ''.join([read.seq[pair[0]]
+                       if pair[0]
+                       else templ_seq[pair[1]]
+                       for pair in read.aligned_pairs
+                       if pair[1] is not None])
+
+        if seq:
+            yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')

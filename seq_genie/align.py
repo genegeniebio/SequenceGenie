@@ -58,30 +58,6 @@ class Aligner(object):
         # Translate strip indels:
         _translate(strip_id_seqs, barcode + '_aa.fasta')
 
-    def __strip_indels(self, in_filename, out_filename=None):
-        '''Strips spurious indels.'''
-        out_filename = io_utils.get_filename(out_filename)
-
-        with open(out_filename, 'w') as fle:
-            SeqIO.write(self.__sam_to_rec(in_filename), fle, 'fasta')
-
-        return out_filename
-
-    def __sam_to_rec(self, in_filename):
-        '''Generator to convert sam files into Biopython SeqRecords.'''
-        sam_file = pysam.Samfile(in_filename, 'r')
-
-        for read in sam_file:
-            # Perform mapping of nucl indices to remove spurious indels:
-            seq = ''.join([read.seq[pair[0]]
-                           if pair[0]
-                           else self.__templ_seq[pair[1]]
-                           for pair in read.aligned_pairs
-                           if pair[1] is not None])
-
-            if seq:
-                yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
-
 
 def _bin_seqs(barcodes, sequences, evalue=0.1):
     '''Bin sequences according to barcodes.'''
