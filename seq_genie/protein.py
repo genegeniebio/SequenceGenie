@@ -28,7 +28,7 @@ def analyse(sam_files, templ_seq):
                 vals.append(len(templ_seq) -
                             sum([(nucl_a == nucl_b)
                                  for (nucl_a, nucl_b)
-                                 in zip(read.seq, templ_seq)]))
+                                 in zip(read.seq[read.qstart:], templ_seq)]))
 
     bins = max([val for vals in mutations for val in vals]) - \
         min([val for vals in mutations for val in vals])
@@ -52,19 +52,28 @@ def main(args):
 
     for reads_filename in args[1:]:
         # Align raw file:
-        sam_filename = reads_filename + '.sam'
+        sam_filename = reads_filename + '_raw.sam'
         utils.align(templ_filename, utils.parse(reads_filename),
-                    out=sam_filename)
+                    out=sam_filename,
+                    gap_open=12)
+
+        # Filter indels:
+        sam_filt_filename = reads_filename + '_filtered.sam'
+        utils.reject_indels(sam_filename, templ_seq,
+                            out_filename=sam_filt_filename)
 
         # Strip indels:
-        strip_filename = utils.strip_indels(sam_filename, templ_seq)
+        # strip_filename = utils.strip_indels(sam_filename, templ_seq)
 
         # Re-align:
-        utils.align(templ_filename, utils.parse(strip_filename),
-                    out=sam_filename)
+        # sam_filename = reads_filename + '_indel_stripped.sam'
+        # utils.align(templ_filename,
+        #             utils.parse(strip_filename),
+        #             out=sam_filename,
+        #             gap_open=9)
 
         # Analyse:
-        sam_files.append(AlignmentFile(sam_filename, 'r'))
+        sam_files.append(AlignmentFile(sam_filt_filename, 'r'))
 
     analyse(sam_files, templ_seq)
 
