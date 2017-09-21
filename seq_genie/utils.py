@@ -39,16 +39,16 @@ def get_reads(dirs, min_length=0, dir_filter='pass'):
     return reads
 
 
-def align(templ_filename, reads, out='align.sam'):
+def align(templ_filename, reads, out='align.sam', gap_open=6):
     '''Aligns sequences in barcoded bins.'''
     # Index template:
     subprocess.call(['bwa', 'index', templ_filename])
 
     # Align and sort:
-    sort(mem(reads, templ_filename), out)
+    sort(mem(reads, templ_filename, gap_open=gap_open), out)
 
 
-def mem(reads, templ_filename, readtype='pacbio'):
+def mem(reads, templ_filename, readtype='pacbio', gap_open=6):
     '''Runs BWA MEM.'''
     reads_file = tempfile.NamedTemporaryFile(delete=False)
     out_file = tempfile.NamedTemporaryFile(delete=False)
@@ -58,6 +58,7 @@ def mem(reads, templ_filename, readtype='pacbio'):
     with open(out_file.name, 'w') as out:
         subprocess.call(['bwa', 'mem',
                          '-x', readtype,
+                         '-O', str(gap_open),
                          templ_filename, reads_file.name],
                         stdout=out)
 
@@ -75,6 +76,24 @@ def sort(in_filename, out_filename):
                        key=lambda x: (-x.query_length,
                                       x.reference_start)):
         out_file.write(read)
+
+    out_file.close()
+
+    return out_filename
+
+
+def reject_indels(sam_filename, templ_seq, out_filename=None):
+    '''Rejects indels.'''
+    out_filename = io_utils.get_filename(out_filename)
+
+    sam_file = Samfile(sam_filename, 'r')
+    out_file = AlignmentFile(out_filename, 'wh',
+                             template=sam_file,
+                             header=sam_file.header)
+
+    for read in sam_file:
+        if read.cigarstring and str(len(templ_seq)) + 'M' in read.cigarstring:
+            out_file.write(read)
 
     out_file.close()
 
