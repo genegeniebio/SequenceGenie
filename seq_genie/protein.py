@@ -8,22 +8,19 @@ All rights reserved.
 # pylint: disable=invalid-name
 # pylint: disable=no-member
 # pylint: disable=no-name-in-module
+# pylint: disable=relative-import
+from _collections import defaultdict
 import os
 import sys
 
 from Bio.Seq import Seq
 from pysam import AlignmentFile
+from synbiochem.utils import mut_utils
+
 from mpl_toolkits.mplot3d import Axes3D
 from seq_genie import utils
 import matplotlib.pyplot as plt
 import numpy as np
-
-
-def analyse(sam_files, templ_seq):
-    '''Analyse data.'''
-    # analyse_dna_mut(sam_files, templ_seq)
-    plot()
-    # analyse_aa_mut(sam_files, templ_seq)
 
 
 def analyse_dna_mut(sam_files, templ_seq):
@@ -61,33 +58,45 @@ def analyse_aa_mut(sam_files, templ_seq):
     muts = [[[] for _ in range(len(template_aa))]
             for _ in range(len(sam_files))]
 
+    seqs_to_bins = defaultdict(list)
+
     for sam_idx, sam_file in enumerate(sam_files):
         for read in sam_file:
-            read_dna = Seq(read.seq[read.qstart:read.qend])
-            read_aa = read_dna.translate()
+            mut = analyse_aa_mut_read(read, template_aa)
 
-            if len(read_aa) == len(template_aa):
-                read_muts = {}
+            if mut:
+                muts[sam_idx][mut[0]].append(mut[1])
+                seqs_to_bins[mut[2]].append(sam_idx)
 
-                for (pos, aas) in enumerate(zip(read_aa, template_aa)):
-                    if aas[0] != aas[1]:
-                        read_muts[pos] = aas[0]
-
-                if len(read_muts) == 1:
-                    muts[sam_idx][read_muts.keys()[0]].append(
-                        read_muts.values()[0])
-
-    for mut in muts:
-        for pos in mut:
-            print len(pos)
+    return muts, seqs_to_bins, template_aa
 
 
-def plot(length):
+def analyse_aa_mut_read(read, template_aa):
+    '''Analyse amino acid mutations in a single read.'''
+    read_dna = Seq(read.seq[read.qstart:read.qend])
+    read_aa = read_dna.translate()
+
+    if len(read_aa) == len(template_aa):
+        read_muts = {}
+
+        for (pos, aas) in enumerate(zip(read_aa, template_aa)):
+            if aas[0] != aas[1]:
+                read_muts[pos] = aas[0]
+
+        if len(read_muts) == 1:
+            return (read_muts.keys()[0], read_muts.values()[0], read_aa)
+
+    return None
+
+
+def plot(data):
+    '''Plots mutant counts.'''
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    for z in [0, 1, 2, 3]:
-        xs = np.arange(length)
-        ys = np.random.rand(length)
+
+    for z, bin_data in enumerate(data):
+        xs = np.arange(len(bin_data))
+        ys = [len(set(muts)) for muts in bin_data]
         ax.bar(xs, ys, zs=z, zdir='y', alpha=0.8)
 
     ax.set_xlabel('Residue')
@@ -101,8 +110,6 @@ def main(args):
     '''main method.'''
     templ_filename = args[0]
     templ_seq = list(utils.parse(templ_filename))[0].seq
-
-    plot(len(templ_seq))
 
     sam_files = []
 
@@ -118,10 +125,23 @@ def main(args):
         utils.reject_indels(sam_filename, templ_seq,
                             out_filename=sam_filt_filename)
 
-        # Analyse:
         sam_files.append(AlignmentFile(sam_filt_filename, 'r'))
 
-    analyse(sam_files, templ_seq)
+    # Analyse:
+    muts, seqs_to_bins, template_aa = analyse_aa_mut(sam_files, templ_seq)
+
+    with open('seqs_to_bins.txt', 'w') as outfile:
+        for seq, bins in seqs_to_bins.iteritems():
+            outfile.write('\t'.join([str(val)
+                                     for val in [seq,
+                                                 mut_utils.get_mutations(
+                                                     template_aa, seq),
+                                                 bins,
+                                                 len(bins),
+                                                 np.mean(bins),
+                                                 np.std(bins)]]) + '\n')
+
+    # plot(muts)
 
 
 if __name__ == '__main__':
