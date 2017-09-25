@@ -9,7 +9,8 @@ All rights reserved.
 # pylint: disable=no-member
 # pylint: disable=no-name-in-module
 # pylint: disable=relative-import
-from _collections import defaultdict
+from collections import defaultdict
+from operator import itemgetter
 import os
 import sys
 
@@ -21,6 +22,23 @@ from mpl_toolkits.mplot3d import Axes3D
 from seq_genie import utils
 import matplotlib.pyplot as plt
 import numpy as np
+
+
+def align(templ_filename, reads_filename):
+    '''Align sequence files.'''
+    templ_seq = list(utils.parse(templ_filename))[0].seq
+
+    # Align raw file:
+    sam_filename = reads_filename + '_raw.sam'
+    utils.align(templ_filename, utils.parse(reads_filename),
+                out=sam_filename,
+                gap_open=12)
+
+    # Filter indels:
+    sam_filt_flename = reads_filename + '_filtered.sam'
+    utils.reject_indels(sam_filename, templ_seq, out_filename=sam_filt_flename)
+
+    return AlignmentFile(sam_filt_flename, 'r')
 
 
 def analyse_dna_mut(sam_files, templ_seq):
@@ -111,35 +129,23 @@ def main(args):
     templ_filename = args[0]
     templ_seq = list(utils.parse(templ_filename))[0].seq
 
-    sam_files = []
-
-    for reads_filename in args[1:]:
-        # Align raw file:
-        sam_filename = reads_filename + '_raw.sam'
-        utils.align(templ_filename, utils.parse(reads_filename),
-                    out=sam_filename,
-                    gap_open=12)
-
-        # Filter indels:
-        sam_filt_filename = reads_filename + '_filtered.sam'
-        utils.reject_indels(sam_filename, templ_seq,
-                            out_filename=sam_filt_filename)
-
-        sam_files.append(AlignmentFile(sam_filt_filename, 'r'))
+    sam_files = [align(templ_filename, reads_filename)
+                 for reads_filename in args[1:]]
 
     # Analyse:
     muts, seqs_to_bins, template_aa = analyse_aa_mut(sam_files, templ_seq)
 
+    for seq, bins in seqs_to_bins.iteritems():
+        seqs_to_bins[seq] = [seq,
+                             mut_utils.get_mutations(template_aa, seq),
+                             bins,
+                             len(bins),
+                             np.mean(bins),
+                             np.std(bins)]
+
     with open('seqs_to_bins.txt', 'w') as outfile:
-        for seq, bins in seqs_to_bins.iteritems():
-            outfile.write('\t'.join([str(val)
-                                     for val in [seq,
-                                                 mut_utils.get_mutations(
-                                                     template_aa, seq),
-                                                 bins,
-                                                 len(bins),
-                                                 np.mean(bins),
-                                                 np.std(bins)]]) + '\n')
+        for vals in sorted(seqs_to_bins.values(), key=itemgetter(1)):
+            outfile.write('\t'.join([str(val) for val in vals]) + '\n')
 
     # plot(muts)
 
