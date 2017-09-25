@@ -6,6 +6,7 @@ All rights reserved.
 @author: neilswainston
 '''
 import sys
+
 from seq_genie import utils
 from synbiochem.utils import ice_utils, seq_utils
 import matplotlib.pyplot as plt
