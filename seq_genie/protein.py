@@ -18,7 +18,6 @@ from Bio.Seq import Seq
 from pysam import AlignmentFile
 from synbiochem.utils import mut_utils
 
-from mpl_toolkits.mplot3d import Axes3D
 from seq_genie import utils
 import matplotlib.pyplot as plt
 import numpy as np
@@ -102,6 +101,9 @@ def analyse_aa_mut_read(read, template_aa):
                 read_muts[pos] = aas[0]
 
         if len(read_muts) == 1:
+            # pos = read_muts.keys()[0]
+            # print read_dna[pos * 3:(pos + 1) * 3]
+
             return (read_muts.keys()[0], read_muts.values()[0], read_aa)
 
     return None

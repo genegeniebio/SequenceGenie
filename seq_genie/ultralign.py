@@ -16,8 +16,8 @@ import sys
 import time
 
 from Bio import pairwise2, SeqIO, Seq
-
 from synbiochem.utils import seq_utils
+
 import numpy as np
 
 

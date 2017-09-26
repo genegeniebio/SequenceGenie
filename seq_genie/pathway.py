@@ -7,8 +7,9 @@ All rights reserved.
 '''
 import sys
 
-from seq_genie import utils
 from synbiochem.utils import ice_utils, seq_utils
+
+from seq_genie import utils
 import matplotlib.pyplot as plt
 
 

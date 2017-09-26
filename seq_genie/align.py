@@ -14,10 +14,10 @@ import sys
 
 from Bio import SeqIO, Seq, SeqRecord
 from pysam import bcftools
+from synbiochem.utils import io_utils, seq_utils
 import pysam
 
 from seq_genie import utils
-from synbiochem.utils import io_utils, seq_utils
 
 
 class Aligner(object):
