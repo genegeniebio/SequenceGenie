@@ -128,6 +128,7 @@ def main(args):
     '''main method.'''
     templ_filename = args[0]
     templ_seq = list(utils.parse(templ_filename))[0].seq
+    templ_aa_seq = templ_seq.translate()
 
     sam_files = [align(templ_filename, reads_filename)
                  for reads_filename in args[1:]]
@@ -146,6 +147,12 @@ def main(args):
     with open('seqs_to_bins.txt', 'w') as outfile:
         for vals in sorted(seqs_to_bins.values(), key=itemgetter(1)):
             outfile.write('\t'.join([str(val) for val in vals]) + '\n')
+
+    with open('mutations_by_pos.txt', 'w') as outfile:
+        for idx, vals in enumerate(zip(templ_aa_seq, zip(*muts))):
+            outfile.write('\t'.join([str(val)
+                                     for val in [idx + 1, vals[0]] +
+                                     list(vals[1])]) + '\n')
 
     # plot(muts)
 
