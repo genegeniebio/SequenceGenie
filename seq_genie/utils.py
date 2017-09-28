@@ -100,18 +100,18 @@ def reject_indels(sam_filename, templ_seq, out_filename=None):
     return out_filename
 
 
-def strip_indels(sam_filename, templ_seq, out_filename=None):
-    '''Strips indels, replacing them with wildtype.'''
+def replace_indels(sam_filename, templ_seq, out_filename=None):
+    '''Replace indels, replacing them with wildtype.'''
     out_filename = io_utils.get_filename(out_filename)
 
     with open(out_filename, 'w') as fle:
-        SeqIO.write(_sam_to_rec(sam_filename, templ_seq), fle, 'fasta')
+        SeqIO.write(_replace_indels(sam_filename, templ_seq), fle, 'fasta')
 
     return out_filename
 
 
-def _sam_to_rec(sam_filename, templ_seq):
-    '''Generator to convert sam files into Biopython SeqRecords.'''
+def _replace_indels(sam_filename, templ_seq):
+    '''Replace indels, replacing them with wildtype.'''
     sam_file = Samfile(sam_filename, 'r')
 
     for read in sam_file:
