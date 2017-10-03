@@ -5,47 +5,53 @@ All rights reserved.
 
 @author: neilswainston
 '''
+import os
 import sys
 
-from synbiochem.utils import ice_utils, seq_utils
+from Bio import Seq, SeqIO, SeqRecord
 
 from seq_genie import utils
-import matplotlib.pyplot as plt
-
-
-def blast(ice_client, seq):
-    '''Does BLAST search against ICE.'''
-    results = ice_client.do_blast(seq)
-
-    if results['results']:
-        res = results['results'][0]
-        print '\t'.join(str(val)
-                        for val in [res['entryInfo']['partId'], res['eValue']])
-
-
-def analyse(reads):
-    '''Analyse records.'''
-    for read in reads:
-        print '\t'.join(str(val)
-                        for val in [read.id, len(read.seq), read.seq])
-
-    plt.hist([len(read.seq) for read in reads], edgecolor='black')
-    plt.title('Read lengths')
-    plt.xlabel('Read length')
-    plt.ylabel('Frequency')
-    plt.show()
 
 
 def main(args):
     '''main method.'''
-    reads = utils.get_reads([args[0]], int(args[1]))
-    ice_client = ice_utils.ICEClient(args[2], args[3], args[4])
+    args_idx = len(args)
 
-    for ice_id in args[5:]:
-        id_seqs = {ice_id: ice_client.get_ice_entry(ice_id).get_seq()}
-        templ_filename = ice_id + '.fasta'
-        seq_utils.write_fasta(id_seqs, templ_filename)
-        utils.align(templ_filename, reads, out=ice_id + '.sam')
+    for args_idx, arg in enumerate(args):
+        if '.fasta' in arg:
+            break
+
+    min_templ_len = float('inf')
+
+    for templ_filename in args[args_idx:]:
+        with open(templ_filename, 'r') as templ:
+            max_templ_len = min(min_templ_len, len(SeqIO.read(templ,
+                                                              format='fasta')))
+
+    reads = utils.get_reads([args[0]], min_length=max_templ_len)
+
+    barcode_seqs = \
+        utils.bin_seqs({str(idx): barcode
+                        for idx, barcode in enumerate(args[1:args_idx])},
+                       {read.id: str(read.seq)
+                        for read in reads},
+                       evalue=1e-3)
+
+    print [(key, len(values)) for key, values in barcode_seqs.iteritems()]
+
+    for key, values in barcode_seqs.iteritems():
+        reads = [SeqRecord.SeqRecord(Seq.Seq(seq), id=seq_id)
+                 for seq_id, seq in values.iteritems()]
+
+        # with open(key + '.fasta', 'w') as out:
+        #    SeqIO.write(reads, out, 'fasta')
+
+        for templ_filename in args[args_idx:]:
+            _, tail = os.path.split(templ_filename)
+            sam_filename = key + '_' + tail + '.sam'
+            utils.align(templ_filename, reads, sam_filename)
+            # utils.mpileup(sam_filename, templ_filename,
+            #               key + '_' + tail + '.txt')
 
 
 if __name__ == '__main__':
