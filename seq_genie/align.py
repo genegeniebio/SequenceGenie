@@ -8,7 +8,6 @@ All rights reserved.
 # pylint: disable=no-member
 # pylint: disable=ungrouped-imports
 # pylint: disable=too-few-public-methods
-from collections import defaultdict
 import subprocess
 import sys
 
@@ -59,31 +58,6 @@ class Aligner(object):
         _translate(strip_id_seqs, barcode + '_aa.fasta')
 
 
-def _bin_seqs(barcodes, sequences, evalue=0.1):
-    '''Bin sequences according to barcodes.'''
-    seq_bin = defaultdict(dict)
-
-    if barcodes:
-        results = seq_utils.do_blast(barcodes, sequences, evalue=evalue,
-                                     word_size=4)
-
-        for result in results:
-            barcode = 'undefined'
-            # expect = float('NaN')
-
-            for alignment in result.alignments:
-                barcode = alignment.hit_def
-                # expect = alignment.hsps[0].expect
-                break
-
-            seq_bin[barcode][result.query] = sequences[result.query]
-    else:
-        seq_bin['undefined'] = {seq_id: seq
-                                for seq_id, seq in sequences.iteritems()}
-
-    return seq_bin
-
-
 def _convert(sam_filename, bam_filename=None):
     '''Convert SAM file to BAM file.'''
     bam_filename = io_utils.get_filename(bam_filename)
@@ -92,17 +66,6 @@ def _convert(sam_filename, bam_filename=None):
         bam_file.write(pysam.view('-b', sam_filename))
 
     return bam_filename
-
-
-def _mpileup(in_filename, templ_filename, out_filename=None):
-    '''Runs mpileup.'''
-    out_filename = io_utils.get_filename(out_filename)
-
-    with open(out_filename, 'w') as out_file:
-        out_file.write(pysam.mpileup('-uvBAd', '500000',
-                                     '-f', templ_filename,
-                                     in_filename))
-    return out_filename
 
 
 def _call(in_filename, out_filename=None):

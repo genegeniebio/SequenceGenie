@@ -6,13 +6,16 @@ All rights reserved.
 @author: neilswainston
 '''
 # pylint: disable=no-name-in-module
+# pylint: disable=ungrouped-imports
+from collections import defaultdict
 import os
 import subprocess
 import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
 from pysam import AlignmentFile, Samfile
-from synbiochem.utils import io_utils
+from synbiochem.utils import io_utils, seq_utils
+import pysam
 
 
 def parse(reads_filename):
@@ -21,7 +24,7 @@ def parse(reads_filename):
     return SeqIO.parse(reads_filename, ext[1:] if ext else 'fasta')
 
 
-def get_reads(dirs, min_length=0, dir_filter='pass'):
+def get_reads(dirs, min_length=0):
     '''Converts fastq files to fasta.'''
     reads = []
 
@@ -30,13 +33,35 @@ def get_reads(dirs, min_length=0, dir_filter='pass'):
             for filename in filenames:
                 filename = os.path.join(dirpath, filename)
 
-                if filename[-6:] == '.fastq' and dir_filter in filename:
+                if filename[-6:] == '.fastq':
                     with open(filename, 'rU') as fle:
                         reads.extend([record
                                       for record in SeqIO.parse(fle, 'fastq')
                                       if len(record.seq) > min_length])
 
     return reads
+
+
+def bin_seqs(barcodes, sequences, evalue=1):
+    '''Bin sequences according to barcodes.'''
+    barcode_seqs = defaultdict(dict)
+
+    if barcodes:
+        results = seq_utils.do_blast(barcodes, sequences, evalue=evalue,
+                                     word_size=4)
+        for result in results:
+            barcode = 'undefined'
+
+            for alignment in result.alignments:
+                barcode = barcodes[alignment.hit_def]
+
+            barcode_seqs[barcode][result.query] = sequences[result.query]
+
+    else:
+        barcode_seqs['undefined'] = {seq_id: seq
+                                     for seq_id, seq in sequences.iteritems()}
+
+    return barcode_seqs
 
 
 def align(templ_filename, reads, out='align.sam', gap_open=6):
@@ -63,6 +88,17 @@ def mem(reads, templ_filename, readtype='pacbio', gap_open=6):
                         stdout=out)
 
     return out_file.name
+
+
+def mpileup(in_filename, templ_filename, out_filename=None):
+    '''Runs mpileup.'''
+    out_filename = io_utils.get_filename(out_filename)
+
+    with open(out_filename, 'w') as out_file:
+        out_file.write(pysam.mpileup('-uvBAd', '500000',
+                                     '-f', templ_filename,
+                                     in_filename))
+    return out_filename
 
 
 def sort(in_filename, out_filename):
