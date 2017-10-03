@@ -103,7 +103,7 @@ ENV/
 /.project
 /.pydevproject
 
-/**/*.fasta*
+/**/*.fasta.*
 /**/*.sam*
 /**/*.ugenedb
 /**/.DS_Store
