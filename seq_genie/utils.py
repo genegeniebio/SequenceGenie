@@ -8,6 +8,7 @@ All rights reserved.
 # pylint: disable=no-name-in-module
 # pylint: disable=ungrouped-imports
 from collections import defaultdict
+from os.path import splitext
 import os
 import subprocess
 import tempfile
@@ -24,20 +25,23 @@ def parse(reads_filename):
     return SeqIO.parse(reads_filename, ext[1:] if ext else 'fasta')
 
 
-def get_reads(dirs, min_length=0):
+def get_reads(directory, min_length=0):
     '''Converts fastq files to fasta.'''
     reads = []
 
-    for directory in dirs:
-        for dirpath, _, filenames in os.walk(os.path.abspath(directory)):
-            for filename in filenames:
-                filename = os.path.join(dirpath, filename)
+    for dirpath, _, filenames in os.walk(os.path.abspath(directory)):
+        for filename in filenames:
+            filename = os.path.join(dirpath, filename)
 
-                if filename[-6:] == '.fastq':
-                    with open(filename, 'rU') as fle:
-                        reads.extend([record
-                                      for record in SeqIO.parse(fle, 'fastq')
-                                      if len(record.seq) > min_length])
+            _, ext = splitext(filename)
+
+            try:
+                with open(filename, 'rU') as fle:
+                    reads.extend([record
+                                  for record in SeqIO.parse(fle, ext[1:])
+                                  if len(record.seq) > min_length])
+            except (IOError, ValueError):
+                pass
 
     return reads
 

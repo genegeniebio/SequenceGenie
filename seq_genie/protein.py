@@ -23,21 +23,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def align(templ_filename, reads_filename):
+def align(templ_filename, reads_dirs):
     '''Align sequence files.'''
+    align_files = []
     templ_seq = list(utils.parse(templ_filename))[0].seq
 
-    # Align raw file:
-    sam_filename = reads_filename + '_raw.sam'
-    utils.align(templ_filename, utils.parse(reads_filename),
-                out=sam_filename,
-                gap_open=12)
+    for reads_dir in reads_dirs:
+        # Align raw file:
+        sam_filename = reads_dir + '_raw.sam'
+        utils.align(templ_filename, utils.get_reads(reads_dir),
+                    out=sam_filename,
+                    gap_open=12)
 
-    # Filter indels:
-    sam_filt_flename = reads_filename + '_filtered.sam'
-    utils.reject_indels(sam_filename, templ_seq, out_filename=sam_filt_flename)
+        # Filter indels:
+        sam_filt_flename = reads_dir + '_filtered.sam'
+        utils.reject_indels(sam_filename, templ_seq,
+                            out_filename=sam_filt_flename)
 
-    return AlignmentFile(sam_filt_flename, 'r')
+        align_files.append(AlignmentFile(sam_filt_flename, 'r'))
+
+    return align_files
 
 
 def analyse_dna_mut(sam_files, templ_seq):
@@ -132,8 +137,7 @@ def main(args):
     templ_seq = list(utils.parse(templ_filename))[0].seq
     templ_aa_seq = templ_seq.translate()
 
-    sam_files = [align(templ_filename, reads_filename)
-                 for reads_filename in args[1:]]
+    sam_files = align(templ_filename, args[1:])
 
     # Analyse:
     muts, seqs_to_bins, template_aa = analyse_aa_mut(sam_files, templ_seq)
