@@ -21,27 +21,20 @@ import pysam
 
 def parse(reads_filename):
     '''Parse reads file.'''
-    _, ext = os.path.splitext(reads_filename)
-    return SeqIO.parse(reads_filename, ext[1:] if ext else 'fasta')
+    return get_reads(reads_filename)
 
 
-def get_reads(directory, min_length=0):
-    '''Converts fastq files to fasta.'''
+def get_reads(reads_filename, min_length=0):
+    '''Gets reads.'''
     reads = []
 
-    for dirpath, _, filenames in os.walk(os.path.abspath(directory)):
-        for filename in filenames:
-            filename = os.path.join(dirpath, filename)
-
-            _, ext = splitext(filename)
-
-            try:
-                with open(filename, 'rU') as fle:
-                    reads.extend([record
-                                  for record in SeqIO.parse(fle, ext[1:])
-                                  if len(record.seq) > min_length])
-            except (IOError, ValueError):
-                pass
+    if os.path.isdir(reads_filename):
+        for dirpath, _, filenames in os.walk(os.path.abspath(reads_filename)):
+            for filename in filenames:
+                filename = os.path.join(dirpath, filename)
+                _get_reads(filename, min_length, reads)
+    else:
+        _get_reads(reads_filename, min_length, reads)
 
     return reads
 
@@ -148,6 +141,19 @@ def replace_indels(sam_filename, templ_seq, out_filename=None):
         SeqIO.write(_replace_indels(sam_filename, templ_seq), fle, 'fasta')
 
     return out_filename
+
+
+def _get_reads(filename, min_length, reads):
+    '''Gets reads.'''
+    _, ext = splitext(filename)
+
+    try:
+        with open(filename, 'rU') as fle:
+            reads.extend([record
+                          for record in SeqIO.parse(fle, ext[1:])
+                          if len(record.seq) > min_length])
+    except (IOError, ValueError), e:
+        print e
 
 
 def _replace_indels(sam_filename, templ_seq):

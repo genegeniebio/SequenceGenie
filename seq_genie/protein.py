@@ -23,20 +23,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def align(templ_filename, reads_dirs):
+def align(templ_filename, reads_files):
     '''Align sequence files.'''
     align_files = []
     templ_seq = list(utils.parse(templ_filename))[0].seq
 
-    for reads_dir in reads_dirs:
+    for reads_file in reads_files:
         # Align raw file:
-        sam_filename = reads_dir + '_raw.sam'
-        utils.align(templ_filename, utils.get_reads(reads_dir),
+        sam_filename = reads_file + '_raw.sam'
+        utils.align(templ_filename, utils.get_reads(reads_file),
                     out=sam_filename,
                     gap_open=12)
 
         # Filter indels:
-        sam_filt_flename = reads_dir + '_filtered.sam'
+        sam_filt_flename = reads_file + '_filtered.sam'
         utils.reject_indels(sam_filename, templ_seq,
                             out_filename=sam_filt_flename)
 
