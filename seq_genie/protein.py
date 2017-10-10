@@ -87,7 +87,8 @@ def analyse_aa_mut(sam_files, templ_seq):
             mut = analyse_aa_mut_read(read, template_aa)
 
             if mut:
-                muts[sam_idx][mut[0]].append(mut[1])
+                if mut[0]:
+                    muts[sam_idx][mut[0]].append(mut[1])
                 seqs_to_bins[mut[2]].append(sam_idx)
 
     return muts, seqs_to_bins, template_aa
@@ -106,10 +107,9 @@ def analyse_aa_mut_read(read, template_aa):
                 read_muts[pos] = aas[0]
 
         if len(read_muts) == 1:
-            # pos = read_muts.keys()[0]
-            # print read_dna[pos * 3:(pos + 1) * 3]
-
             return (read_muts.keys()[0], read_muts.values()[0], read_aa)
+        elif len(read_muts) == 0:
+            return (None, None, read_aa)
 
     return None
 
