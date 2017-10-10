@@ -15,12 +15,13 @@ import os
 import sys
 
 from Bio.Seq import Seq
+from pysal.inequality import gini
 from pysam import AlignmentFile
 from synbiochem.utils import mut_utils
 
-from seq_genie import utils
 import matplotlib.pyplot as plt
 import numpy as np
+from seq_genie import utils
 
 
 def align(templ_filename, reads_files):
@@ -73,28 +74,26 @@ def analyse_dna_mut(sam_files, templ_seq):
     plt.show()
 
 
-def analyse_aa_mut(sam_files, templ_seq):
+def analyse_aa_mut(sam_files, templ_aa_seq):
     '''Analyse amino acid mutations.'''
-    template_aa = templ_seq.translate()
-
-    muts = [[[] for _ in range(len(template_aa))]
+    muts = [[[] for _ in range(len(templ_aa_seq))]
             for _ in range(len(sam_files))]
 
     seqs_to_bins = defaultdict(list)
 
     for sam_idx, sam_file in enumerate(sam_files):
         for read in sam_file:
-            mut = analyse_aa_mut_read(read, template_aa)
+            mut = _analyse_aa_mut(read, templ_aa_seq)
 
             if mut:
                 if mut[0]:
                     muts[sam_idx][mut[0]].append(mut[1])
                 seqs_to_bins[mut[2]].append(sam_idx)
 
-    return muts, seqs_to_bins, template_aa
+    return muts, seqs_to_bins
 
 
-def analyse_aa_mut_read(read, template_aa):
+def _analyse_aa_mut(read, template_aa):
     '''Analyse amino acid mutations in a single read.'''
     read_dna = Seq(read.seq[read.qstart:read.qend])
     read_aa = read_dna.translate()
@@ -102,7 +101,7 @@ def analyse_aa_mut_read(read, template_aa):
     if len(read_aa) == len(template_aa):
         read_muts = {}
 
-        for (pos, aas) in enumerate(zip(read_aa, template_aa)):
+        for (pos, aas) in enumerate(zip(read_aa, template_aa)[:-1]):
             if aas[0] != aas[1]:
                 read_muts[pos] = aas[0]
 
@@ -131,20 +130,35 @@ def plot(data):
     plt.show()
 
 
+def get_gini(muts):
+    '''Get Gini value for each position.'''
+    scores = []
+    mut_probs = mut_utils.MutProbs()
+
+    for idx, act_bin in enumerate(muts[1]):
+        for mut_res in act_bin:
+            if mut_res != '*':
+                scores.append(
+                    (1 - mut_probs.get_mut_prob(muts[0], mut_res)) * 10**idx)
+
+    return gini.Gini(scores).g if scores else 0
+
+
 def main(args):
     '''main method.'''
     templ_filename = args[0]
     templ_seq = list(utils.parse(templ_filename))[0].seq
     templ_aa_seq = templ_seq.translate()
 
+    # Align:
     sam_files = align(templ_filename, args[1:])
 
     # Analyse:
-    muts, seqs_to_bins, template_aa = analyse_aa_mut(sam_files, templ_seq)
+    muts, seqs_to_bins = analyse_aa_mut(sam_files, templ_aa_seq)
 
     for seq, bins in seqs_to_bins.iteritems():
         seqs_to_bins[seq] = [seq,
-                             mut_utils.get_mutations(template_aa, seq),
+                             mut_utils.get_mutations(templ_aa_seq, seq),
                              bins,
                              len(bins),
                              np.mean(bins),
@@ -157,9 +171,9 @@ def main(args):
     with open('mutations_by_pos.txt', 'w') as outfile:
         for idx, vals in enumerate(zip(templ_aa_seq, zip(*muts))):
             outfile.write('\t'.join([str(val)
-                                     for val in [idx + 1, vals[0]] +
+                                     for val in [idx + 1, vals[0],
+                                                 get_gini(vals)] +
                                      list(vals[1])]) + '\n')
-
     # plot(muts)
 
 
