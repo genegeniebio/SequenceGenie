@@ -25,34 +25,37 @@ def _analyse(sam_files, templ_filename, mut_templ_filename,
     # Replace N with wildtype:
     with open(fasta_filename, 'w') as fle:
         for sam_file in sam_files:
-            SeqIO.write(_strip_n(sam_file, templ_seq), fle, 'fasta')
+            SeqIO.write(_strip(sam_file, templ_seq, mut_templ_seq), fle,
+                        'fasta')
 
-    for sam_file in protein.align(templ_filename, [fasta_filename]):
-        for read in sam_file:
-            # Perform mapping of nucl indices to remove spurious indels:
-            for pair in read.aligned_pairs:
-                if pair[1] is not None:
-                    if read.seq[pair[0]] \
-                            not in INV_NUCL_CODES[mut_templ_seq[pair[1]]] and \
-                            read.seq[pair[0]] != templ_seq[pair[1]]:
-                        print read.query_name + '\t' + \
-                            read.seq[pair[0]] + '\t' + \
-                            mut_templ_seq[pair[1]] + '\t' + \
-                            str(pair[1])
+    sam_files = protein.align(templ_filename, [fasta_filename])
 
 
-def _strip_n(sam_file, templ_seq):
-    '''Replace N with wildtype.'''
+def _strip(sam_file, templ_seq, mut_templ_seq):
+    '''Replace N and spurious mutations with wildtype.'''
     for read in sam_file:
-        # Perform mapping of nucl indices to remove spurious indels:
-        seq = ''.join([read.seq[pair[0]]
-                       if pair[0] and read.seq[pair[0]] != 'N'
-                       else templ_seq[pair[1]]
-                       for pair in read.aligned_pairs
-                       if pair[1] is not None])
+        # Perform mapping of nucl indices to remove N:
+        if read.aligned_pairs:
+            templ_idx = zip(*read.aligned_pairs)[1]
+            prefix = templ_seq[:min([val for val in templ_idx if val])]
+            suffix = templ_seq[max(templ_idx):]
+            seq = ''.join([read.seq[pair[0]]
+                           if _valid(pair, read, templ_seq, mut_templ_seq)
+                           else templ_seq[pair[1]]
+                           for pair in read.aligned_pairs
+                           if pair[1] is not None])
 
-        if seq:
-            yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
+            if seq:
+                yield SeqRecord.SeqRecord(prefix + seq + suffix,
+                                          read.qname, '', '')
+
+
+def _valid(pair, read, templ_seq, mut_templ_seq):
+    '''Determines whether nucleotide pair is valid.'''
+    return pair[0] and \
+        read.seq[pair[0]] != 'N' and \
+        (read.seq[pair[0]] in INV_NUCL_CODES[mut_templ_seq[pair[1]]] or
+         read.seq[pair[0]] == templ_seq[pair[1]])
 
 
 def main(args):
