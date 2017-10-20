@@ -24,7 +24,7 @@ import numpy as np
 from seq_genie import utils
 
 
-def align(templ_filename, reads_files):
+def align(templ_filename, reads_files, filtr=False):
     '''Align sequence files.'''
     align_files = []
     templ_seq = list(utils.parse(templ_filename))[0].seq
@@ -32,16 +32,19 @@ def align(templ_filename, reads_files):
     for reads_file in reads_files:
         # Align raw file:
         sam_filename = reads_file + '_raw.sam'
+        align_filename = sam_filename
         utils.align(templ_filename, utils.get_reads(reads_file),
                     out=sam_filename,
                     gap_open=12)
 
-        # Filter indels:
-        sam_filt_flename = reads_file + '_filtered.sam'
-        utils.reject_indels(sam_filename, templ_seq,
-                            out_filename=sam_filt_flename)
+        if filtr:
+            # Filter indels:
+            sam_filt_flename = reads_file + '_filtered.sam'
+            align_filename = sam_filt_flename
+            utils.reject_indels(sam_filename, templ_seq,
+                                out_filename=sam_filt_flename)
 
-        align_files.append(AlignmentFile(sam_filt_flename, 'r'))
+        align_files.append(AlignmentFile(align_filename, 'r'))
 
     return align_files
 
@@ -151,7 +154,7 @@ def main(args):
     templ_aa_seq = templ_seq.translate()
 
     # Align:
-    sam_files = align(templ_filename, args[1:])
+    sam_files = align(templ_filename, args[1:], filtr=True)
 
     # Analyse:
     muts, seqs_to_bins = analyse_aa_mut(sam_files, templ_aa_seq)

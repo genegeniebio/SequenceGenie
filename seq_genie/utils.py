@@ -8,15 +8,15 @@ All rights reserved.
 # pylint: disable=no-name-in-module
 # pylint: disable=ungrouped-imports
 from collections import defaultdict
-from os.path import splitext
 import os
+from os.path import splitext
 import subprocess
 import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
-from pysam import AlignmentFile, Samfile
-from synbiochem.utils import io_utils, seq_utils
+from pysam import Samfile
 import pysam
+from synbiochem.utils import io_utils, seq_utils
 
 
 def parse(reads_filename):
@@ -100,10 +100,10 @@ def mpileup(in_filename, templ_filename, out_filename=None):
 
 def sort(in_filename, out_filename):
     '''Custom sorts SAM file.'''
-    sam_file = AlignmentFile(in_filename, 'r')
-    out_file = AlignmentFile(out_filename, 'wh',
-                             template=sam_file,
-                             header=sam_file.header)
+    sam_file = Samfile(in_filename, 'r')
+    out_file = Samfile(out_filename, 'wh',
+                       template=sam_file,
+                       header=sam_file.header)
 
     for read in sorted([read for read in sam_file],
                        key=lambda x: (-x.query_length,
@@ -120,9 +120,9 @@ def reject_indels(sam_filename, templ_seq, out_filename=None):
     out_filename = io_utils.get_filename(out_filename)
 
     sam_file = Samfile(sam_filename, 'r')
-    out_file = AlignmentFile(out_filename, 'wh',
-                             template=sam_file,
-                             header=sam_file.header)
+    out_file = Samfile(out_filename, 'wh',
+                       template=sam_file,
+                       header=sam_file.header)
 
     for read in sam_file:
         if read.cigarstring and str(len(templ_seq)) + 'M' in read.cigarstring:
@@ -152,8 +152,8 @@ def _get_reads(filename, min_length, reads):
             reads.extend([record
                           for record in SeqIO.parse(fle, ext[1:])
                           if len(record.seq) > min_length])
-    except (IOError, ValueError), e:
-        print e
+    except (IOError, ValueError), err:
+        print err
 
 
 def _replace_indels(sam_filename, templ_seq):
