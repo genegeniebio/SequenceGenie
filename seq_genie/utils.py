@@ -5,6 +5,7 @@ All rights reserved.
 
 @author: neilswainston
 '''
+# pylint: disable=no-member
 # pylint: disable=no-name-in-module
 # pylint: disable=ungrouped-imports
 from collections import defaultdict

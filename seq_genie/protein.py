@@ -110,7 +110,7 @@ def _analyse_aa_mut(read, template_aa):
 
         if len(read_muts) == 1:
             return (read_muts.keys()[0], read_muts.values()[0], read_aa)
-        elif len(read_muts) == 0:
+        elif not read_muts:
             return (None, None, read_aa)
 
     return None

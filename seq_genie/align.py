@@ -13,8 +13,8 @@ import sys
 
 from Bio import SeqIO, Seq, SeqRecord
 from pysam import bcftools
-from synbiochem.utils import io_utils, seq_utils
 import pysam
+from synbiochem.utils import io_utils
 
 from seq_genie import utils
 
@@ -41,21 +41,6 @@ class Aligner(object):
 
         # Align and sort:
         utils.sort(self.__mem(seqs), 'align.sam')
-
-    def __align(self, barcode, id_seqs):
-        '''Aligns sequences in a given bin.'''
-
-        # Align, sort and strip indels from file:
-        fasta_strip_filename = \
-            self.__strip_indels(utils.sort(self.__mem(id_seqs)))
-
-        strip_id_seqs = seq_utils.read_fasta(fasta_strip_filename)
-
-        # Align strip indels:
-        utils.sort(self.__mem(strip_id_seqs), barcode + '.sam')
-
-        # Translate strip indels:
-        _translate(strip_id_seqs, barcode + '_aa.fasta')
 
 
 def _convert(sam_filename, bam_filename=None):

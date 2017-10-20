@@ -16,7 +16,7 @@ import sys
 import time
 
 from Bio import pairwise2, SeqIO, Seq
-from synbiochem.utils import seq_utils
+from synbiochem.utils import mut_utils, seq_utils
 
 import numpy as np
 
@@ -162,7 +162,7 @@ def _parse_mut_strs(mut_strs):
     mutations = []
 
     if mut_strs is not None:
-        mutations = [seq_utils.parse_mutation(mut) for mut in mut_strs]
+        mutations = [mut_utils.parse_mut_str(mut) for mut in mut_strs]
         mutations = [item for sublist in mutations for item in sublist]
 
     return mutations
