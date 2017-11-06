@@ -6,9 +6,7 @@ All rights reserved.
 @author: neilswainston
 '''
 # pylint: disable=invalid-name
-# pylint: disable=no-member
 # pylint: disable=no-name-in-module
-# pylint: disable=relative-import
 from collections import defaultdict
 from operator import itemgetter
 import os
@@ -17,11 +15,12 @@ import sys
 from Bio.Seq import Seq
 from pysal.inequality import gini
 from pysam import AlignmentFile
-from synbiochem.utils import mut_utils
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from seq_genie import utils
+from synbiochem.utils import mut_utils
 
 
 def align(templ_filename, reads_files, filtr=False):
@@ -177,7 +176,7 @@ def main(args):
                                      for val in [idx + 1, vals[0],
                                                  get_gini(vals)] +
                                      list(vals[1])]) + '\n')
-    # plot(muts)
+    plot(muts)
 
 
 if __name__ == '__main__':
