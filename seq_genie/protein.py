@@ -115,8 +115,28 @@ def _analyse_aa_mut(read, template_aa):
     return None
 
 
-def plot(data):
-    '''Plots mutant counts.'''
+def plot_stacked(data):
+    '''Plots mutant counts as stacked bar chart.'''
+    mut_counts = [[len(pos) for pos in mut] for mut in data]
+    plt_bars = []
+
+    for idx, datum in enumerate(mut_counts):
+        bottom = [0 for _ in range(len(datum))] \
+            if idx == 0 else mut_counts[idx - 1]
+
+        plt_bars.append(plt.bar(range(len(datum)), datum, bottom=bottom))
+
+    plt.xlabel('Residue')
+    plt.ylabel('Count')
+    plt.title('Mutants per residue by activity bin')
+    plt.legend(plt_bars, ['Bin ' + str(idx + 1)
+                          for idx in range(len(plt_bars))])
+
+    plt.show()
+
+
+def plot3d(data):
+    '''Plots mutant counts in 3d.'''
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
@@ -176,7 +196,7 @@ def main(args):
                                      for val in [idx + 1, vals[0],
                                                  get_gini(vals)] +
                                      list(vals[1])]) + '\n')
-    plot(muts)
+    plot_stacked(muts)
 
 
 if __name__ == '__main__':
