@@ -10,10 +10,10 @@ import os
 import sys
 
 from Bio import SeqIO, SeqRecord
-from synbiochem.utils.mut_utils import get_mutations
-from synbiochem.utils.seq_utils import INV_NUCL_CODES
 
 from seq_genie import protein, utils
+from synbiochem.utils.mut_utils import get_mutations
+from synbiochem.utils.seq_utils import INV_NUCL_CODES
 
 
 def _analyse(sam_files, templ_filename, mut_templ_filename):

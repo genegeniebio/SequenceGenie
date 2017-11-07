@@ -17,6 +17,7 @@ import tempfile
 from Bio import Seq, SeqIO, SeqRecord
 from pysam import Samfile
 import pysam
+
 from synbiochem.utils import io_utils, seq_utils
 
 

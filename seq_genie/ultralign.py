@@ -16,9 +16,9 @@ import sys
 import time
 
 from Bio import pairwise2, SeqIO, Seq
-from synbiochem.utils import mut_utils, seq_utils
 
 import numpy as np
+from synbiochem.utils import mut_utils, seq_utils
 
 
 _NUCL_IDX = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
