@@ -19,8 +19,9 @@ from pysam import AlignmentFile
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
+import pandas as pd
 from seq_genie import utils
-from synbiochem.utils import mut_utils
+from synbiochem.utils import mut_utils, seq_utils
 
 
 def align(templ_filename, reads_files, filtr=False):
@@ -90,7 +91,7 @@ def analyse_aa_mut(sam_files, templ_aa_seq):
             if mut:
                 if mut[0]:
                     muts[sam_idx][mut[0]].append(mut[1])
-                seqs_to_bins[mut[2]].append(sam_idx)
+                seqs_to_bins[mut[2]].append(sam_idx + 1)
 
     return muts, seqs_to_bins
 
@@ -132,6 +133,27 @@ def plot_stacked(data):
     plt.legend(plt_bars, ['Bin ' + str(idx + 1)
                           for idx in range(len(plt_bars))])
 
+    plt.show()
+
+
+def plot_heatmap(seq_data, seq_len):
+    '''Plot heatmap.'''
+    df = pd.DataFrame(0.0, columns=seq_utils.AA_CODES.values(),
+                      index=range(1, seq_len + 1))
+
+    for seq_datum in seq_data:
+        for mut in seq_datum[1]:
+            df[mut.get_mut_res()][mut.get_pos()] = seq_datum[4]
+
+    df = df.transpose()
+    df = df.sort_index()
+
+    # Plot heatmap
+    plt.pcolor(df, cmap='Greens')
+    plt.title('Mutations per residue number')
+    plt.xlabel('Residue number')
+    plt.ylabel('Amino acid')
+    plt.yticks(np.arange(0.5, len(df.index), 1), df.index)
     plt.show()
 
 
@@ -196,7 +218,8 @@ def main(args):
                                      for val in [idx + 1, vals[0],
                                                  get_gini(vals)] +
                                      list(vals[1])]) + '\n')
-    plot_stacked(muts)
+    # plot_stacked(muts)
+    plot_heatmap(seqs_to_bins.values(), len(templ_aa_seq))
 
 
 if __name__ == '__main__':
