@@ -149,11 +149,13 @@ def plot_heatmap(seq_data, seq_len):
     df = df.sort_index()
 
     # Plot heatmap
-    plt.pcolor(df, cmap='Greens')
+    heatmap = plt.pcolor(df, cmap='Greens')
     plt.title('Mutations per residue number')
     plt.xlabel('Residue number')
     plt.ylabel('Amino acid')
     plt.yticks(np.arange(0.5, len(df.index), 1), df.index)
+    plt.xticks(np.arange(0, len(df.columns), 25))
+    plt.colorbar(heatmap)
     plt.show()
 
 
