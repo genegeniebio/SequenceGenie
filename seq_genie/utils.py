@@ -35,6 +35,8 @@ def get_reads(reads_filename, min_length=0):
             for filename in filenames:
                 filename = os.path.join(dirpath, filename)
                 _get_reads(filename, min_length, reads)
+
+                break
     else:
         _get_reads(reads_filename, min_length, reads)
 
