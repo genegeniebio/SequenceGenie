@@ -81,7 +81,7 @@ def score_alignments(ice_files, barcode_seqs, dir_name):
                 if read.reference_length:
                     scores.append(read.reference_length / read.query_length)
 
-            if len(scores):
+            if scores:
                 df[ice_id][barcode] = sum(scores) / len(scores)
 
             sam_file.close()
