@@ -1,5 +1,5 @@
 '''
-DNA++ (c) DNA++ 2017
+SequenceGenie (c) GeneGenie Bioinformatics Ltd. 2017
 
 All rights reserved.
 

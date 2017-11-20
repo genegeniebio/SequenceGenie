@@ -1,11 +1,9 @@
 '''
-synbiochem (c) University of Manchester 2017
+SequenceGenie (c) GeneGenie Bioinformatics Ltd. 2017
 
-synbiochem is licensed under the MIT License.
+All rights reserved.
 
-To view a copy of this license, visit <http://opensource.org/licenses/MIT/>.
-
-@author:  neilswainston
+@author: neilswainston
 '''
 # pylint: disable=invalid-name
 import sys
