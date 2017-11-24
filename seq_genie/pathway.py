@@ -7,22 +7,26 @@ All rights reserved.
 '''
 # pylint: disable=invalid-name
 # pylint: disable=no-member
+# pylint: disable=too-many-arguments
 from __future__ import division
 
 import os
+import random
 import sys
 import uuid
 
 from Bio import Seq, SeqRecord
 import pysam
 
+import numpy as np
 import pandas as pd
 from seq_genie import utils
 from synbiochem.utils import ice_utils, seq_utils
 
 
 def identify(barcodes_filename, reads_filename,
-             ice_url, ice_username, ice_password, ice_ids):
+             ice_url, ice_username, ice_password, ice_ids,
+             min_length=1024, max_seqs=16384):
     '''Identify plamids from sequences.'''
     dir_name = str(uuid.uuid4())
 
@@ -30,12 +34,18 @@ def identify(barcodes_filename, reads_filename,
         os.makedirs(dir_name)
 
     barcodes = get_barcodes(barcodes_filename)
-    reads = utils.get_reads(reads_filename)
+    reads = utils.get_reads(reads_filename, min_length)
+
+    print len(reads)
 
     barcode_seqs = utils.bin_seqs(barcodes,
                                   {read.id: str(read.seq)
-                                   for read in reads[:128]},
+                                   for read in random.sample(reads,
+                                                             min(len(reads),
+                                                                 max_seqs))},
                                   evalue=1e-3)
+
+    print barcode_seqs
 
     ice_files = get_ice_files(ice_url, ice_username, ice_password, ice_ids,
                               dir_name)
@@ -79,10 +89,10 @@ def score_alignments(ice_files, barcode_seqs, dir_name):
 
             for read in sam_file.fetch():
                 if read.reference_length:
-                    scores.append(read.reference_length / read.query_length)
+                    scores.append(len(read.positions))
 
             if scores:
-                df[ice_id][barcode] = sum(scores) / len(scores)
+                df[ice_id][barcode] = np.percentile(scores, 90)
 
             sam_file.close()
 
@@ -91,7 +101,9 @@ def score_alignments(ice_files, barcode_seqs, dir_name):
 
 def main(args):
     '''main method.'''
-    df = identify(args[0], args[1], args[2], args[3], args[4], args[5:])
+    df = identify(args[0], args[1], args[2], args[3], args[4], args[7:],
+                  int(args[5]), int(args[6]))
+
     df.to_csv('out.csv')
 
 

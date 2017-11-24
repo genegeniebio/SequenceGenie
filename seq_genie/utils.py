@@ -35,15 +35,13 @@ def get_reads(reads_filename, min_length=0):
             for filename in filenames:
                 filename = os.path.join(dirpath, filename)
                 _get_reads(filename, min_length, reads)
-
-                break
     else:
         _get_reads(reads_filename, min_length, reads)
 
     return reads
 
 
-def bin_seqs(barcodes, sequences, evalue=1):
+def bin_seqs(barcodes, sequences, evalue=1, ignore_undefined=True):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(dict)
 
@@ -56,7 +54,8 @@ def bin_seqs(barcodes, sequences, evalue=1):
             for alignment in result.alignments:
                 barcode = barcodes[alignment.hit_def]
 
-            barcode_seqs[barcode][result.query] = sequences[result.query]
+            if barcode != 'undefined' or not ignore_undefined:
+                barcode_seqs[barcode][result.query] = sequences[result.query]
 
     else:
         barcode_seqs['undefined'] = {seq_id: seq
