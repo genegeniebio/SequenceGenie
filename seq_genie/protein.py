@@ -7,6 +7,7 @@ All rights reserved.
 '''
 # pylint: disable=invalid-name
 # pylint: disable=no-name-in-module
+# pylint: disable=too-few-public-methods
 from collections import defaultdict
 from operator import itemgetter
 import os
@@ -179,7 +180,7 @@ def plot3d(data):
 def get_gini(muts):
     '''Get Gini value for each position.'''
     scores = []
-    mut_probs = mut_utils.MutProbs()
+    mut_probs = MutProbs()
 
     for idx, act_bin in enumerate(muts[1]):
         for mut_res in act_bin:
@@ -222,6 +223,43 @@ def main(args):
                                      list(vals[1])]) + '\n')
     # plot_stacked(muts)
     plot_heatmap(seqs_to_bins.values(), len(templ_aa_seq))
+
+
+class MutProbs(object):
+    '''Class to represent mutation probabilities.'''
+
+    def __init__(self):
+        directory = os.path.dirname(os.path.realpath(__file__))
+        filename = os.path.join(directory, 'blosum62.qij')
+
+        with open(filename) as fle:
+            row = 0
+
+            for line in fle:
+                if line.startswith('#'):
+                    continue
+
+                tokens = line.split()
+
+                if tokens[0][0].isalpha():
+                    self.__mut_probs = pd.DataFrame(index=tokens,
+                                                    columns=tokens)
+                else:
+                    self.__mut_probs.iloc[row, :len(tokens)] = \
+                        [float(val) for val in tokens]
+
+                    row = row + 1
+
+        # Fill top triangle:
+        for idx, column in enumerate(self.__mut_probs):
+            self.__mut_probs.iloc[idx] = self.__mut_probs[column]
+
+        # Normalise probabilities for each row / column / residue:
+        self.__mut_probs = self.__mut_probs / self.__mut_probs.sum()
+
+    def get_mut_prob(self, wt_res, mut_res):
+        '''Gets mutation probabilities.'''
+        return self.__mut_probs[wt_res][mut_res]
 
 
 if __name__ == '__main__':
