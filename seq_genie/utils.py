@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
+from pyfaidx import FastaVariant
 from pysam import Samfile
 import pysam
 
@@ -90,15 +91,21 @@ def mem(reads, templ_filename, readtype='pacbio', gap_open=6):
     return out_file.name
 
 
-def mpileup(in_filename, templ_filename, out_filename=None):
-    '''Runs mpileup.'''
-    out_filename = io_utils.get_filename(out_filename)
+def get_consensus(sam_filename, templ_filename):
+    '''Convert files.'''
+    # samtools mpileup -uf ref.fa aln.bam | bcftools view -cg - | vcfutils.pl
+    # vcf2fq > cns.fq
+    bam_filename = sam_filename + '.bam'
+    vcf_filename = sam_filename + '.vcf'
+    pysam.view(sam_filename, '-o', bam_filename, catch_stdout=False)
+    pysam.sort('-o', bam_filename, bam_filename)
 
-    with open(out_filename, 'w') as out_file:
-        out_file.write(pysam.mpileup('-uvBAd', '500000',
-                                     '-f', templ_filename,
-                                     in_filename))
-    return out_filename
+    with open(vcf_filename, 'w') as vcf_file:
+        vcf_file.write(pysam.mpileup('-f', templ_filename, bam_filename))
+
+    consensus = FastaVariant(templ_filename, vcf_filename, sample='consensus',
+                             het=True, hom=True)
+    print consensus
 
 
 def sort(in_filename, out_filename):

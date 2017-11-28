@@ -78,10 +78,12 @@ def score_alignments(ice_files, barcode_seqs, dir_name):
         reads = [SeqRecord.SeqRecord(Seq.Seq(seq), id=seq_id)
                  for seq_id, seq in seqs.iteritems()]
 
-        for ice_id, filename in ice_files.iteritems():
+        for ice_id, templ_filename in ice_files.iteritems():
             sam_filename = os.path.join(dir_name,
                                         barcode + '_' + ice_id + '.sam')
-            utils.align(filename, reads, sam_filename)
+            utils.align(templ_filename, reads, sam_filename)
+
+            utils.get_consensus(sam_filename, templ_filename)
 
             sam_file = pysam.AlignmentFile(sam_filename, 'r')
 
