@@ -78,8 +78,6 @@ def score_alignments(ice_files, barcode_seqs, dir_name):
         reads = [SeqRecord.SeqRecord(Seq.Seq(seq), id=seq_id)
                  for seq_id, seq in seqs.iteritems()]
 
-        scores = []
-
         for ice_id, filename in ice_files.iteritems():
             sam_filename = os.path.join(dir_name,
                                         barcode + '_' + ice_id + '.sam')
@@ -87,9 +85,9 @@ def score_alignments(ice_files, barcode_seqs, dir_name):
 
             sam_file = pysam.AlignmentFile(sam_filename, 'r')
 
-            for read in sam_file.fetch():
-                if read.reference_length:
-                    scores.append(len(read.positions))
+            scores = [len(read.positions)
+                      for read in sam_file.fetch()
+                      if read.reference_length]
 
             if scores:
                 df[ice_id][barcode] = np.percentile(scores, 90)
