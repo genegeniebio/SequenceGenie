@@ -97,11 +97,22 @@ def get_consensus(sam_filename, templ_filename):
     # vcf2fq > cns.fq
     bam_filename = sam_filename + '.bam'
     vcf_filename = sam_filename + '.vcf'
+    vcf_call_filename = sam_filename + '_call.vcf'
+    fasta_filename = sam_filename + '.fas'
     pysam.view(sam_filename, '-o', bam_filename, catch_stdout=False)
     pysam.sort('-o', bam_filename, bam_filename)
 
     with open(vcf_filename, 'w') as vcf_file:
-        vcf_file.write(pysam.mpileup('-f', templ_filename, bam_filename))
+        vcf_file.write(pysam.mpileup('-uf', templ_filename, bam_filename))
+
+    # samtools mpileup -uf 3958.fasta CATCCTAGTTGGTACTGCAATACT_3958.sam.bam |
+    # bcftools call -c | perl /Applications/bcftools/vcfutils.pl vcf2fq -d 2 >
+    # cns.fq
+
+    subprocess.call(['bcftools', 'consensus',
+                     '-f', templ_filename,
+                     '-o', fasta_filename,
+                     vcf_filename])
 
     consensus = FastaVariant(templ_filename, vcf_filename, sample='consensus',
                              het=True, hom=True)
