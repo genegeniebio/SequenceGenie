@@ -15,7 +15,6 @@ import subprocess
 import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
-from pyfaidx import FastaVariant
 from pysam import Samfile
 import pysam
 
@@ -96,9 +95,6 @@ def get_consensus(sam_filename, templ_filename):
     # samtools mpileup -uf ref.fa aln.bam | bcftools view -cg - | vcfutils.pl
     # vcf2fq > cns.fq
     bam_filename = sam_filename + '.bam'
-    vcf_filename = sam_filename + '.vcf'
-    vcf_call_filename = sam_filename + '_call.vcf'
-    fasta_filename = sam_filename + '.fas'
     pysam.view(sam_filename, '-o', bam_filename, catch_stdout=False)
     pysam.sort('-o', bam_filename, bam_filename)
 
