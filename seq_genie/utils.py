@@ -102,21 +102,22 @@ def get_consensus(sam_filename, templ_filename):
     pysam.view(sam_filename, '-o', bam_filename, catch_stdout=False)
     pysam.sort('-o', bam_filename, bam_filename)
 
-    with open(vcf_filename, 'w') as vcf_file:
-        vcf_file.write(pysam.mpileup('-uf', templ_filename, bam_filename))
-
     # samtools mpileup -uf 3958.fasta CATCCTAGTTGGTACTGCAATACT_3958.sam.bam |
-    # bcftools call -c | perl /Applications/bcftools/vcfutils.pl vcf2fq -d 2 >
-    # cns.fq
+    # bcftools call -c |
+    # perl /Applications/bcftools/vcfutils.pl vcf2fq -d 2 > cns.fq
 
-    subprocess.call(['bcftools', 'consensus',
-                     '-f', templ_filename,
-                     '-o', fasta_filename,
-                     vcf_filename])
+    proc1 = subprocess.Popen(['samtools', 'mpileup', '-uf', templ_filename,
+                              bam_filename],
+                             stdout=subprocess.PIPE)
 
-    consensus = FastaVariant(templ_filename, vcf_filename, sample='consensus',
-                             het=True, hom=True)
-    print consensus
+    proc2 = subprocess.Popen(['bcftools', 'call', '-c'],
+                             stdin=proc1.stdout, stdout=subprocess.PIPE)
+    proc1.stdout.close()
+    proc3 = subprocess.Popen(['perl', '/Applications/bcftools/vcfutils.pl',
+                              'vcf2fq', '-d', '2'],
+                             stdin=proc2.stdout, stdout=subprocess.PIPE)
+    proc2.stdout.close()
+    print proc3.communicate()[0]
 
 
 def sort(in_filename, out_filename):
