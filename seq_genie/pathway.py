@@ -15,6 +15,7 @@ import random
 import sys
 import uuid
 
+from Bio import SeqIO
 import pysam
 
 import pandas as pd
@@ -40,6 +41,7 @@ def identify(barcodes_filename, reads_filename,
                                    random.sample(reads,
                                                  min(len(reads), max_seqs)))
 
+    print [len(val) for val in barcode_reads.values()]
     print sum([len(val) for val in barcode_reads.values()])
 
     ice_files = get_ice_files(ice_url, ice_username, ice_password, ice_ids,
@@ -73,6 +75,9 @@ def score_alignments(ice_files, barcode_reads, dir_name):
         utils.index(templ_filename)
 
     for barcode, reads in barcode_reads.iteritems():
+        reads_filename = os.path.join(dir_name, barcode + '.fasta')
+        SeqIO.write(reads, reads_filename, 'fasta')
+
         for ice_id, templ_filename in ice_files.iteritems():
             sam_filename = os.path.join(dir_name,
                                         barcode + '_' + ice_id + '.sam')
@@ -80,13 +85,12 @@ def score_alignments(ice_files, barcode_reads, dir_name):
             cons_sam_filename = os.path.join(
                 dir_name, barcode + '_' + ice_id + '_cons.sam')
 
-            utils.align(templ_filename, reads, sam_filename)
+            # Align:
+            utils.align(templ_filename, reads_filename, sam_filename)
 
+            # Generate then align consensus:
             fasta_filename = utils.get_consensus(sam_filename, templ_filename)
-
-            utils.align(templ_filename,
-                        utils.get_reads(fasta_filename),
-                        cons_sam_filename)
+            utils.align(templ_filename, fasta_filename, cons_sam_filename)
 
             df[ice_id][barcode] = _score(cons_sam_filename)
 

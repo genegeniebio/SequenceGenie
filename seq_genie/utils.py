@@ -58,25 +58,21 @@ def index(filename):
     subprocess.call(['bwa', 'index', filename])
 
 
-def align(templ_filename, reads, out='align.sam', gap_open=6):
+def align(templ_filename, reads_filename, out='align.sam', gap_open=6):
     '''Aligns sequences in barcoded bins.'''
     # Align and sort:
-    sort(mem(reads, templ_filename, gap_open=gap_open), out)
+    sort(mem(reads_filename, templ_filename, gap_open=gap_open), out)
 
 
-def mem(reads, templ_filename, readtype='ont2d', gap_open=6):
+def mem(reads_filename, templ_filename, readtype='ont2d', gap_open=6):
     '''Runs BWA MEM.'''
-    reads_file = tempfile.NamedTemporaryFile(delete=False)
     out_file = tempfile.NamedTemporaryFile(delete=False)
-
-    # TODO: optimise by doing this once:
-    SeqIO.write(reads, reads_file.name, 'fasta')
 
     with open(out_file.name, 'w') as out:
         subprocess.call(['bwa', 'mem',
                          '-x', readtype,
                          '-O', str(gap_open),
-                         templ_filename, reads_file.name],
+                         templ_filename, reads_filename],
                         stdout=out)
 
     return out_file.name
