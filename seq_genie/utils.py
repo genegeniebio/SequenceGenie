@@ -36,14 +36,16 @@ def get_reads(reads_filename, min_length=0):
     return reads
 
 
-def bin_seqs(barcodes, sequences, ignore_undefined=True):
+def bin_seqs(barcodes, sequences, ignore_undefined=True, search_len=256):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
+
+    max_barcode_len = max([len(barcode) for barcode in barcodes])
 
     if barcodes:
         for barcode in barcodes.values():
             for sequence in sequences:
-                if barcode in sequence.seq:
+                if barcode in sequence.seq[:max_barcode_len + search_len]:
                     if not ignore_undefined or barcode != 'undefined':
                         barcode_seqs[barcode].append(sequence)
 
