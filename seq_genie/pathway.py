@@ -13,7 +13,6 @@ from __future__ import division
 import os
 import random
 import sys
-import threading
 import uuid
 
 from Bio import SeqIO
@@ -21,7 +20,7 @@ import pysam
 
 import pandas as pd
 from seq_genie import utils
-from synbiochem.utils import ice_utils, seq_utils
+from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 
 def identify(barcodes_filename, reads_filename,
@@ -75,23 +74,14 @@ def score_alignments(ice_files, barcode_reads, dir_name, num_threads=8):
     for templ_filename in ice_files.values():
         utils.index(templ_filename)
 
-    batches = [barcode_reads.keys()[pos:pos + num_threads]
-               for pos in xrange(0, len(barcode_reads.keys()), num_threads)]
+    thread_pool = thread_utils.ThreadPool(num_threads)
 
-    for batched_barcode_reads in batches:
-        threads = []
+    for barcode, reads in barcode_reads.iteritems():
+        thread_pool.add_task(_score_alignment, dir_name, barcode,
+                             reads,
+                             ice_files, df)
 
-        for barcode in batched_barcode_reads:
-            t = threading.Thread(target=_score_alignment,
-                                 args=(dir_name, barcode,
-                                       barcode_reads[barcode],
-                                       ice_files, df))
-            t.daemon = True
-            t.start()
-            threads.append(t)
-
-        for t in threads:
-            t.join()
+    thread_pool.wait_completion()
 
     return df
 
