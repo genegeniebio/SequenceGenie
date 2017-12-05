@@ -13,6 +13,7 @@ from __future__ import division
 import os
 import random
 import sys
+import threading
 import uuid
 
 from Bio import SeqIO
@@ -67,34 +68,54 @@ def get_ice_files(url, username, password, ice_ids, dir_name):
             for ice_id in ice_ids}
 
 
-def score_alignments(ice_files, barcode_reads, dir_name):
+def score_alignments(ice_files, barcode_reads, dir_name, num_threads=8):
     '''Score alignments.'''
     df = pd.DataFrame(columns=ice_files.keys(), index=barcode_reads.keys())
 
-    for ice_id, templ_filename in ice_files.iteritems():
+    for templ_filename in ice_files.values():
         utils.index(templ_filename)
 
-    for barcode, reads in barcode_reads.iteritems():
-        reads_filename = os.path.join(dir_name, barcode + '.fasta')
-        SeqIO.write(reads, reads_filename, 'fasta')
+    batches = [barcode_reads.keys()[pos:pos + num_threads]
+               for pos in xrange(0, len(barcode_reads.keys()), num_threads)]
 
-        for ice_id, templ_filename in ice_files.iteritems():
-            sam_filename = os.path.join(dir_name,
-                                        barcode + '_' + ice_id + '.sam')
+    for batched_barcode_reads in batches:
+        threads = []
 
-            cons_sam_filename = os.path.join(
-                dir_name, barcode + '_' + ice_id + '_cons.sam')
+        for barcode in batched_barcode_reads:
+            t = threading.Thread(target=_score_alignment,
+                                 args=(dir_name, barcode,
+                                       barcode_reads[barcode],
+                                       ice_files, df))
+            t.daemon = True
+            t.start()
+            threads.append(t)
 
-            # Align:
-            utils.align(templ_filename, reads_filename, sam_filename)
-
-            # Generate then align consensus:
-            fasta_filename = utils.get_consensus(sam_filename, templ_filename)
-            utils.align(templ_filename, fasta_filename, cons_sam_filename)
-
-            df[ice_id][barcode] = _score(cons_sam_filename)
+        for t in threads:
+            t.join()
 
     return df
+
+
+def _score_alignment(dir_name, barcode, reads, ice_files, df):
+    '''Score an alignment.'''
+    reads_filename = os.path.join(dir_name, barcode + '.fasta')
+    SeqIO.write(reads, reads_filename, 'fasta')
+
+    for ice_id, templ_filename in ice_files.iteritems():
+        sam_filename = os.path.join(dir_name,
+                                    barcode + '_' + ice_id + '.sam')
+
+        cons_sam_filename = os.path.join(
+            dir_name, barcode + '_' + ice_id + '_cons.sam')
+
+        # Align:
+        utils.align(templ_filename, reads_filename, sam_filename)
+
+        # Generate then align consensus:
+        fasta_filename = utils.get_consensus(sam_filename, templ_filename)
+        utils.align(templ_filename, fasta_filename, cons_sam_filename)
+
+        df[ice_id][barcode] = _score(cons_sam_filename)
 
 
 def _score(cons_sam_filename):
