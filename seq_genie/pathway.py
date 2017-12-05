@@ -15,10 +15,8 @@ import random
 import sys
 import uuid
 
-from Bio import Seq, SeqRecord
 import pysam
 
-import numpy as np
 import pandas as pd
 from seq_genie import utils
 from synbiochem.utils import ice_utils, seq_utils
@@ -26,7 +24,7 @@ from synbiochem.utils import ice_utils, seq_utils
 
 def identify(barcodes_filename, reads_filename,
              ice_url, ice_username, ice_password, ice_ids,
-             min_length=1024, max_seqs=16384):
+             min_length=128, max_seqs=128000):
     '''Identify plamids from sequences.'''
     dir_name = str(uuid.uuid4())
 
@@ -38,19 +36,16 @@ def identify(barcodes_filename, reads_filename,
 
     print len(reads)
 
-    barcode_seqs = utils.bin_seqs(barcodes,
-                                  {read.id: str(read.seq)
-                                   for read in random.sample(reads,
-                                                             min(len(reads),
-                                                                 max_seqs))},
-                                  evalue=1e-3)
+    barcode_reads = utils.bin_seqs(barcodes,
+                                   random.sample(reads,
+                                                 min(len(reads), max_seqs)))
 
-    print barcode_seqs
+    print sum([len(val) for val in barcode_reads.values()])
 
     ice_files = get_ice_files(ice_url, ice_username, ice_password, ice_ids,
                               dir_name)
 
-    return score_alignments(ice_files, barcode_seqs, dir_name)
+    return score_alignments(ice_files, barcode_reads, dir_name)
 
 
 def get_barcodes(filename):
@@ -70,33 +65,45 @@ def get_ice_files(url, username, password, ice_ids, dir_name):
             for ice_id in ice_ids}
 
 
-def score_alignments(ice_files, barcode_seqs, dir_name):
+def score_alignments(ice_files, barcode_reads, dir_name):
     '''Score alignments.'''
-    df = pd.DataFrame(columns=ice_files.keys(), index=barcode_seqs.keys())
+    df = pd.DataFrame(columns=ice_files.keys(), index=barcode_reads.keys())
 
-    for barcode, seqs in barcode_seqs.iteritems():
-        reads = [SeqRecord.SeqRecord(Seq.Seq(seq), id=seq_id)
-                 for seq_id, seq in seqs.iteritems()]
+    for ice_id, templ_filename in ice_files.iteritems():
+        utils.index(templ_filename)
 
+    for barcode, reads in barcode_reads.iteritems():
         for ice_id, templ_filename in ice_files.iteritems():
             sam_filename = os.path.join(dir_name,
                                         barcode + '_' + ice_id + '.sam')
+
+            cons_sam_filename = os.path.join(
+                dir_name, barcode + '_' + ice_id + '_cons.sam')
+
             utils.align(templ_filename, reads, sam_filename)
 
-            utils.get_consensus(sam_filename, templ_filename)
+            fasta_filename = utils.get_consensus(sam_filename, templ_filename)
 
-            sam_file = pysam.AlignmentFile(sam_filename, 'r')
+            utils.align(templ_filename,
+                        utils.get_reads(fasta_filename),
+                        cons_sam_filename)
 
-            scores = [len(read.positions)
-                      for read in sam_file.fetch()
-                      if read.reference_length]
-
-            if scores:
-                df[ice_id][barcode] = np.percentile(scores, 90)
-
-            sam_file.close()
+            df[ice_id][barcode] = _score(cons_sam_filename)
 
     return df
+
+
+def _score(cons_sam_filename):
+    '''Scores consensus alignment.'''
+    cons_sam_file = pysam.AlignmentFile(cons_sam_filename, 'r')
+
+    score = sum([len(read.positions)
+                 for read in cons_sam_file.fetch()
+                 if read.reference_length])
+
+    cons_sam_file.close()
+
+    return score
 
 
 def main(args):

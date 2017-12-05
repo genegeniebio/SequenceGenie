@@ -28,7 +28,7 @@ from synbiochem.utils import mut_utils, seq_utils
 def align(templ_filename, reads_files, filtr=False):
     '''Align sequence files.'''
     align_files = []
-    templ_seq = list(utils.parse(templ_filename))[0].seq
+    templ_seq = list(utils.get_reads(templ_filename))[0].seq
 
     for reads_file in reads_files:
         # Align raw file:
@@ -194,7 +194,7 @@ def get_gini(muts):
 def main(args):
     '''main method.'''
     templ_filename = args[0]
-    templ_seq = list(utils.parse(templ_filename))[0].seq
+    templ_seq = list(utils.get_reads(templ_filename))[0].seq
     templ_aa_seq = templ_seq.translate()
 
     # Align:

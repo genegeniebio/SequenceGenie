@@ -24,8 +24,8 @@ def _analyse(sam_files, templ_filename, mut_templ_filename):
     res_filename = os.path.join(templ_dir, 'out.tsv')
 
     # Get sequences:
-    templ_seq = list(utils.parse(templ_filename))[0].seq
-    mut_templ_seq = list(utils.parse(mut_templ_filename))[0].seq
+    templ_seq = list(utils.get_reads(templ_filename))[0].seq
+    mut_templ_seq = list(utils.get_reads(mut_templ_filename))[0].seq
 
     # Strip N and spurious mutations:
     with open(nucl_filename, 'w') as nucl_file:

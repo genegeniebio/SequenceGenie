@@ -18,12 +18,7 @@ from Bio import Seq, SeqIO, SeqRecord
 from pysam import Samfile
 import pysam
 
-from synbiochem.utils import io_utils, seq_utils
-
-
-def parse(reads_filename):
-    '''Parse reads file.'''
-    return get_reads(reads_filename)
+from synbiochem.utils import io_utils
 
 
 def get_reads(reads_filename, min_length=0):
@@ -41,43 +36,40 @@ def get_reads(reads_filename, min_length=0):
     return reads
 
 
-def bin_seqs(barcodes, sequences, evalue=1, ignore_undefined=True):
+def bin_seqs(barcodes, sequences, ignore_undefined=True):
     '''Bin sequences according to barcodes.'''
-    barcode_seqs = defaultdict(dict)
+    barcode_seqs = defaultdict(list)
 
     if barcodes:
-        results = seq_utils.do_blast(barcodes, sequences, evalue=evalue,
-                                     word_size=4)
-        for result in results:
-            barcode = 'undefined'
-
-            for alignment in result.alignments:
-                barcode = barcodes[alignment.hit_def]
-
-            if barcode != 'undefined' or not ignore_undefined:
-                barcode_seqs[barcode][result.query] = sequences[result.query]
+        for barcode in barcodes.values():
+            for sequence in sequences:
+                if barcode in sequence.seq:
+                    if not ignore_undefined or barcode != 'undefined':
+                        barcode_seqs[barcode].append(sequence)
 
     else:
-        barcode_seqs['undefined'] = {seq_id: seq
-                                     for seq_id, seq in sequences.iteritems()}
+        barcode_seqs['undefined'].extend(sequences)
 
     return barcode_seqs
 
 
+def index(filename):
+    '''Index file.'''
+    subprocess.call(['bwa', 'index', filename])
+
+
 def align(templ_filename, reads, out='align.sam', gap_open=6):
     '''Aligns sequences in barcoded bins.'''
-    # Index template:
-    subprocess.call(['bwa', 'index', templ_filename])
-
     # Align and sort:
     sort(mem(reads, templ_filename, gap_open=gap_open), out)
 
 
-def mem(reads, templ_filename, readtype='pacbio', gap_open=6):
+def mem(reads, templ_filename, readtype='ont2d', gap_open=6):
     '''Runs BWA MEM.'''
     reads_file = tempfile.NamedTemporaryFile(delete=False)
     out_file = tempfile.NamedTemporaryFile(delete=False)
 
+    # TODO: optimise by doing this once:
     SeqIO.write(reads, reads_file.name, 'fasta')
 
     with open(out_file.name, 'w') as out:
@@ -92,28 +84,29 @@ def mem(reads, templ_filename, readtype='pacbio', gap_open=6):
 
 def get_consensus(sam_filename, templ_filename):
     '''Convert files.'''
-    # samtools mpileup -uf ref.fa aln.bam | bcftools view -cg - | vcfutils.pl
-    # vcf2fq > cns.fq
     bam_filename = sam_filename + '.bam'
+    fastq_filename = sam_filename + '.fastq'
+    fasta_filename = sam_filename + '.fasta'
     pysam.view(sam_filename, '-o', bam_filename, catch_stdout=False)
     pysam.sort('-o', bam_filename, bam_filename)
 
-    # samtools mpileup -uf 3958.fasta CATCCTAGTTGGTACTGCAATACT_3958.sam.bam |
-    # bcftools call -c |
-    # perl /Applications/bcftools/vcfutils.pl vcf2fq -d 2 > cns.fq
+    with open(fastq_filename, 'w') as fastq:
+        proc1 = subprocess.Popen(['samtools', 'mpileup', '-uf',
+                                  templ_filename, bam_filename],
+                                 stdout=subprocess.PIPE)
 
-    proc1 = subprocess.Popen(['samtools', 'mpileup', '-uf', templ_filename,
-                              bam_filename],
-                             stdout=subprocess.PIPE)
+        proc2 = subprocess.Popen(['bcftools', 'call', '-c', '--ploidy', '1'],
+                                 stdin=proc1.stdout, stdout=subprocess.PIPE)
+        proc1.stdout.close()
+        proc3 = subprocess.Popen(['perl', '/Applications/bcftools/vcfutils.pl',
+                                  'vcf2fq', '-d', '2'],
+                                 stdin=proc2.stdout, stdout=subprocess.PIPE)
+        proc2.stdout.close()
+        stdout, _ = proc3.communicate()
+        fastq.write(stdout)
 
-    proc2 = subprocess.Popen(['bcftools', 'call', '-c'],
-                             stdin=proc1.stdout, stdout=subprocess.PIPE)
-    proc1.stdout.close()
-    proc3 = subprocess.Popen(['perl', '/Applications/bcftools/vcfutils.pl',
-                              'vcf2fq', '-d', '2'],
-                             stdin=proc2.stdout, stdout=subprocess.PIPE)
-    proc2.stdout.close()
-    print proc3.communicate()[0]
+    SeqIO.convert(fastq_filename, 'fastq', fasta_filename, 'fasta')
+    return fasta_filename
 
 
 def sort(in_filename, out_filename):
