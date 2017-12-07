@@ -1,7 +1,8 @@
-FROM python:2.7-alpine
+FROM python:2.7
 
 # Download and install samtools:
-RUN apk add --no-cache --virtual build-dependencies alpine-sdk gnome-vfs-dev ncurses-dev xz-dev zlib-dev \
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends build-essential  \
 	&& curl -L https://github.com/samtools/samtools/releases/download/1.6/samtools-1.6.tar.bz2 -o samtools.tar.bz2 \
 	&& tar -jxf samtools.tar.bz2 \
 	&& cd samtools-1.6 \
@@ -11,7 +12,6 @@ RUN apk add --no-cache --virtual build-dependencies alpine-sdk gnome-vfs-dev ncu
 	&& make -install \
 	&& cd \
 	&& ls -l \
-	&& apk del build-dependencies
 	
 RUN pip install --upgrade pip \
   && pip install -r requirements.txt
