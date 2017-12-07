@@ -17,10 +17,10 @@ import uuid
 
 from Bio import SeqIO
 import pysam
+from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 import pandas as pd
 from seq_genie import utils
-from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 
 def identify(barcodes_filename, reads_filename,
@@ -92,6 +92,8 @@ def _score_alignment(dir_name, barcode, reads, ice_files, df):
     SeqIO.write(reads, reads_filename, 'fasta')
 
     for ice_id, templ_filename in ice_files.iteritems():
+        templ_seq = utils.get_reads(templ_filename)[0].seq
+
         sam_filename = os.path.join(dir_name,
                                     barcode + '_' + ice_id + '.sam')
 
@@ -105,7 +107,14 @@ def _score_alignment(dir_name, barcode, reads, ice_files, df):
         fasta_filename = utils.get_consensus(sam_filename, templ_filename)
         utils.align(templ_filename, fasta_filename, cons_sam_filename)
 
-        df[ice_id][barcode] = _score(cons_sam_filename)
+        matches, mismatches = utils.get_mismatches(cons_sam_filename,
+                                                   templ_seq)
+
+        print mismatches
+
+        df[ice_id][barcode] = matches
+
+    df.to_csv('out.csv')
 
 
 def _score(cons_sam_filename):

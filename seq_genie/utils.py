@@ -97,7 +97,7 @@ def get_consensus(sam_filename, templ_filename):
                                  stdin=proc1.stdout, stdout=subprocess.PIPE)
         proc1.stdout.close()
         proc3 = subprocess.Popen(['perl', '/Applications/bcftools/vcfutils.pl',
-                                  'vcf2fq', '-d', '2'],
+                                  'vcf2fq', '-d', '12'],
                                  stdin=proc2.stdout, stdout=subprocess.PIPE)
         proc2.stdout.close()
         stdout, _ = proc3.communicate()
@@ -179,3 +179,26 @@ def _replace_indels(sam_filename, templ_seq):
 
         if seq:
             yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
+
+
+def get_mismatches(sam_filename, templ_seq):
+    '''Find mismatches in samfile relative to template sequence.'''
+    matches = 0
+    mismatches = []
+
+    sam_file = Samfile(sam_filename, 'r')
+
+    for read in sam_file:
+        for pair in read.aligned_pairs:
+            if pair[1] is not None:
+                if read.seq[pair[0]] != templ_seq[pair[1]]:
+                    mismatches.append(templ_seq[pair[1]] + str(pair[1] + 1) +
+                                      read.seq[pair[0]])
+                else:
+                    matches += 1
+
+    return matches, mismatches
+
+
+# templ = get_reads('3955.fasta')[0]
+# print get_mismatches('cons.sam', templ.seq)
