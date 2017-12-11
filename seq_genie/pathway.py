@@ -35,14 +35,17 @@ def identify(barcodes_filename, reads_filename,
     barcodes = get_barcodes(barcodes_filename)
     reads = utils.get_reads(reads_filename, min_length)
 
-    print len(reads)
+    print 'Number of sequences:\t' + len(reads)
 
     barcode_reads = utils.bin_seqs(barcodes,
                                    random.sample(reads,
                                                  min(len(reads), max_seqs)))
 
-    print [len(val) for val in barcode_reads.values()]
-    print sum([len(val) for val in barcode_reads.values()])
+    print 'Number of barcoded sequences:\t' + \
+        sum([len(val) for val in barcode_reads.values()])
+
+    print 'Barcoded sequence counts:\t' + \
+        [len(val) for val in barcode_reads.values()]
 
     ice_files = get_ice_files(ice_url, ice_username, ice_password, ice_ids,
                               dir_name)
@@ -114,8 +117,6 @@ def _score_alignment(dir_name, barcode, reads, ice_files, score_df,
 
         matches, mismatches = utils.get_mismatches(cons_sam_filename,
                                                    templ_seq)
-
-        print mismatches
 
         score_df[ice_id][barcode] = matches
         mismatches_df[ice_id][barcode] = mismatches
