@@ -69,7 +69,11 @@ def get_ice_files(url, username, password, ice_ids, dir_name):
 
 def score_alignments(ice_files, barcode_reads, dir_name, num_threads=8):
     '''Score alignments.'''
-    df = pd.DataFrame(columns=ice_files.keys(), index=barcode_reads.keys())
+    score_df = pd.DataFrame(columns=ice_files.keys(),
+                            index=barcode_reads.keys())
+
+    mismatches_df = pd.DataFrame(columns=ice_files.keys(),
+                                 index=barcode_reads.keys())
 
     for templ_filename in ice_files.values():
         utils.index(templ_filename)
@@ -79,14 +83,15 @@ def score_alignments(ice_files, barcode_reads, dir_name, num_threads=8):
     for barcode, reads in barcode_reads.iteritems():
         thread_pool.add_task(_score_alignment, dir_name, barcode,
                              reads,
-                             ice_files, df)
+                             ice_files, score_df, mismatches_df)
 
     thread_pool.wait_completion()
 
-    return df
+    return score_df, mismatches_df
 
 
-def _score_alignment(dir_name, barcode, reads, ice_files, df):
+def _score_alignment(dir_name, barcode, reads, ice_files, score_df,
+                     mismatches_df):
     '''Score an alignment.'''
     reads_filename = os.path.join(dir_name, barcode + '.fasta')
     SeqIO.write(reads, reads_filename, 'fasta')
@@ -112,9 +117,11 @@ def _score_alignment(dir_name, barcode, reads, ice_files, df):
 
         print mismatches
 
-        df[ice_id][barcode] = matches
+        score_df[ice_id][barcode] = matches
+        mismatches_df[ice_id][barcode] = mismatches
 
-    df.to_csv('out.csv')
+    score_df.to_csv('score.csv')
+    mismatches_df.to_csv('mismatches.csv')
 
 
 def _score(cons_sam_filename):
@@ -132,10 +139,12 @@ def _score(cons_sam_filename):
 
 def main(args):
     '''main method.'''
-    df = identify(args[0], args[1], args[2], args[3], args[4], args[7:],
-                  int(args[5]), int(args[6]))
+    score_df, mismatches_df = identify(args[0], args[1], args[2], args[3],
+                                       args[4], args[7:], int(args[5]),
+                                       int(args[6]))
 
-    df.to_csv('out.csv')
+    score_df.to_csv('score.csv')
+    mismatches_df.to_csv('mismatches.csv')
 
 
 if __name__ == '__main__':
