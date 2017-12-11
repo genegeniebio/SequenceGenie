@@ -6,16 +6,13 @@ All rights reserved.
 @author: neilswainston
 '''
 import sys
-import pandas
-import pysam
-import synbiochem
-
-print 'Hello World'
+import seq_genie
 
 
 def main(args):
     '''main method.'''
-    print args
+    if args[0] == 'pathway':
+        seq_genie.pathway.main(args[1:])
 
 
 if __name__ == '__main__':

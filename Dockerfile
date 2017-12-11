@@ -40,6 +40,4 @@ RUN curl -fsSL https://github.com/samtools/bcftools/releases/download/$BCFTOOLS_
 RUN pip install --upgrade pip \
   && pip install -r requirements.txt
   
-CMD python app.py ${*}
-	
-	
+ENTRYPOINT ["python", "app.py"]
