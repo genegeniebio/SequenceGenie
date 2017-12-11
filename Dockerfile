@@ -5,7 +5,9 @@ WORKDIR /
 
 # Setup ENV variables
 ENV SAMTOOLS_BIN="samtools-1.6.tar.bz2" \
-	SAMTOOLS_VERSION="1.6"
+	SAMTOOLS_VERSION="1.6" \
+	BCFTOOLS_BIN="bcftools-1.6.tar.bz2" \
+	BCFTOOLS_VERSION="1.6"
 
 # Install libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -25,9 +27,15 @@ RUN curl -fsSL https://github.com/samtools/samtools/releases/download/$SAMTOOLS_
 	&& cd /opt/samtools-$SAMTOOLS_VERSION \
 	&& make \
 	&& make install \
-	&& rm /opt/$SAMTOOLS_BIN \
-	&& cd \
-	&& ls -l
+	&& rm /opt/$SAMTOOLS_BIN
+	
+# Download and install bcftools:
+RUN curl -fsSL https://github.com/samtools/bcftools/releases/download/$BCFTOOLS_VERSION/$BCFTOOLS_BIN -o /opt/$BCFTOOLS_BIN \
+	&& tar xvjf /opt/$BCFTOOLS_BIN -C /opt/ \
+	&& cd /opt/bcftools-$BCFTOOLS_VERSION \
+	&& make \
+	&& make install \
+	&& rm /opt/$BCFTOOLS_BIN
 	
 RUN pip install --upgrade pip \
   && pip install -r requirements.txt
