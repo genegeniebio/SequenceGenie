@@ -24,6 +24,7 @@ from seq_genie import utils
 
 
 def identify(barcodes_filename, reads_filename,
+             forward_primer, reverse_primer,
              ice_url, ice_username, ice_password, ice_ids,
              barcode_ice_filename=None, min_length=128, max_seqs=128000):
     '''Identify plamids from sequences.'''
@@ -56,7 +57,8 @@ def identify(barcodes_filename, reads_filename,
 
     barcode_ice = barcode_ice.set_index('barcode')['ice_id'].to_dict()
 
-    return score_alignments(ice_files, barcode_reads, dir_name, barcode_ice)
+    return score_alignments(ice_files, forward_primer, reverse_primer,
+                            barcode_reads, dir_name, barcode_ice)
 
 
 def get_barcodes(filename):
@@ -76,8 +78,8 @@ def get_ice_files(url, username, password, ice_ids, dir_name):
             for ice_id in ice_ids}
 
 
-def score_alignments(ice_files, barcode_reads, dir_name, barcode_ice,
-                     num_threads=8):
+def score_alignments(ice_files, forward_primer, reverse_primer,
+                     barcode_reads, dir_name, barcode_ice, num_threads=8):
     '''Score alignments.'''
     score_df = pd.DataFrame(columns=ice_files.keys(),
                             index=barcode_reads.keys())
@@ -91,9 +93,9 @@ def score_alignments(ice_files, barcode_reads, dir_name, barcode_ice,
     thread_pool = thread_utils.ThreadPool(num_threads)
 
     for barcode, reads in barcode_reads.iteritems():
-        thread_pool.add_task(_score_alignment, dir_name, barcode,
-                             reads,
-                             ice_files, barcode_ice,
+        thread_pool.add_task(_score_alignment, dir_name, barcode, reads,
+                             ice_files, forward_primer, reverse_primer,
+                             barcode_ice,
                              score_df, mismatches_df)
 
     thread_pool.wait_completion()
@@ -101,7 +103,9 @@ def score_alignments(ice_files, barcode_reads, dir_name, barcode_ice,
     return score_df, mismatches_df
 
 
-def _score_alignment(dir_name, barcode, reads, ice_files, barcode_ice,
+def _score_alignment(dir_name, barcode, reads, ice_files,
+                     forward_primer, reverse_primer,
+                     barcode_ice,
                      score_df, mismatches_df):
     '''Score an alignment.'''
     reads_filename = os.path.join(dir_name, barcode + '.fasta')
@@ -121,7 +125,10 @@ def _score_alignment(dir_name, barcode, reads, ice_files, barcode_ice,
             utils.align(templ_filename, reads_filename, sam_filename)
 
             # Generate then align consensus:
-            fasta_filename = utils.get_consensus(sam_filename, templ_filename)
+            fasta_filename = utils.get_consensus(sam_filename, templ_filename,
+                                                 forward_primer,
+                                                 reverse_primer)
+
             utils.align(templ_filename, fasta_filename, cons_sam_filename)
 
             matches, mismatches = utils.get_mismatches(cons_sam_filename,
@@ -150,8 +157,9 @@ def _score(cons_sam_filename):
 def main(args):
     '''main method.'''
     score_df, mismatches_df = identify(args[0], args[1], args[2], args[3],
-                                       args[4], args[8:], args[5],
-                                       int(args[6]), int(args[7]))
+                                       args[4], args[5], args[6],
+                                       args[10:], args[7],
+                                       int(args[8]), int(args[9]))
 
     score_df.to_csv('score.csv')
     mismatches_df.to_csv('mismatches.csv')

@@ -80,7 +80,8 @@ def mem(reads_filename, templ_filename, readtype='ont2d', gap_open=6):
     return out_file.name
 
 
-def get_consensus(sam_filename, templ_filename):
+def get_consensus(sam_filename, templ_filename,
+                  forward_primer, reverse_primer):
     '''Convert files.'''
     bam_filename = sam_filename + '.bam'
     fastq_filename = sam_filename + '.fastq'
@@ -103,7 +104,16 @@ def get_consensus(sam_filename, templ_filename):
         stdout, _ = proc3.communicate()
         fastq.write(stdout)
 
-    SeqIO.convert(fastq_filename, 'fastq', fasta_filename, 'fasta')
+    with open(fastq_filename, 'r') as fastq:
+        seq_record = SeqIO.read(fastq, 'fastq')
+
+    seq = _pcr(str(seq_record.seq.upper()), forward_primer, reverse_primer)
+
+    with open(fasta_filename, 'w') as fasta:
+        SeqIO.write(SeqRecord.SeqRecord(Seq.Seq(seq),
+                                        id=seq_record.id),
+                    fasta, 'fasta')
+
     return fasta_filename
 
 
@@ -179,6 +189,22 @@ def _replace_indels(sam_filename, templ_seq):
 
         if seq:
             yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
+
+
+def _pcr(seq, forward_primer, reverse_primer):
+    '''Apply in silico PCR.'''
+    for_primer_pos = seq.find(forward_primer.upper())
+
+    if for_primer_pos > 0:
+        seq = seq[for_primer_pos:]
+
+    rev_primer_pos = \
+        seq.find(str(Seq.Seq(reverse_primer).reverse_complement().upper()))
+
+    if rev_primer_pos > 0:
+        seq = seq[:rev_primer_pos]
+
+    return seq
 
 
 def get_mismatches(sam_filename, templ_seq):
