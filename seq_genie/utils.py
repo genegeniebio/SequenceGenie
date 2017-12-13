@@ -81,7 +81,7 @@ def mem(reads_filename, templ_filename, readtype='ont2d', gap_open=6):
 
 
 def get_consensus(sam_filename, templ_filename,
-                  forward_primer, reverse_primer):
+                  for_primer, rev_primer):
     '''Convert files.'''
     bam_filename = sam_filename + '.bam'
     fastq_filename = sam_filename + '.fastq'
@@ -104,15 +104,7 @@ def get_consensus(sam_filename, templ_filename,
         stdout, _ = proc3.communicate()
         fastq.write(stdout)
 
-    with open(fastq_filename, 'r') as fastq:
-        seq_record = SeqIO.read(fastq, 'fastq')
-
-    seq = _pcr(str(seq_record.seq.upper()), forward_primer, reverse_primer)
-
-    with open(fasta_filename, 'w') as fasta:
-        SeqIO.write(SeqRecord.SeqRecord(Seq.Seq(seq),
-                                        id=seq_record.id),
-                    fasta, 'fasta')
+    _convert_consensus(fastq_filename, fasta_filename, for_primer, rev_primer)
 
     return fasta_filename
 
@@ -189,6 +181,19 @@ def _replace_indels(sam_filename, templ_seq):
 
         if seq:
             yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
+
+
+def _convert_consensus(fastq_filename, fasta_filename, for_primer, rev_primer):
+    '''Convert consensus sequence to fasta.'''
+    with open(fastq_filename, 'r') as fastq:
+        seq_record = SeqIO.read(fastq, 'fastq')
+
+    seq = _pcr(str(seq_record.seq.upper()), for_primer, rev_primer)
+
+    with open(fasta_filename, 'w') as fasta:
+        SeqIO.write(SeqRecord.SeqRecord(Seq.Seq(seq),
+                                        id=seq_record.id),
+                    fasta, 'fasta')
 
 
 def _pcr(seq, forward_primer, reverse_primer):
