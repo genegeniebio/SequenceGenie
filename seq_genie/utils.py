@@ -15,9 +15,9 @@ import subprocess
 import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
+from fuzzywuzzy import fuzz
 from pysam import Samfile
 import pysam
-
 from synbiochem.utils import io_utils
 
 
@@ -36,19 +36,27 @@ def get_reads(reads_filename, min_length=0):
     return reads
 
 
-def bin_seqs(barcodes, sequences, ignore_undefined=True, search_len=256):
+def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
     max_barcode_len = max([len(barcode) for barcode in barcodes])
 
     if barcodes:
-        for barcode in barcodes.values():
-            for sequence in sequences:
-                if barcode in sequence.seq[:max_barcode_len + search_len]:
-                    if not ignore_undefined or barcode != 'undefined':
-                        barcode_seqs[barcode].append(sequence)
+        for seq in sequences:
+            trim_seq = str(seq.seq[:max_barcode_len + search_len])
+            max_score = score_threshold
+            selected_barcode = None
 
+            for barcode in barcodes.values():
+                score = fuzz.partial_ratio(barcode, trim_seq)
+
+                if score > max_score:
+                    selected_barcode = barcode
+                    max_score = score
+
+            if selected_barcode:
+                barcode_seqs[selected_barcode].append(seq)
     else:
         barcode_seqs['undefined'].extend(sequences)
 
