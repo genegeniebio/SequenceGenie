@@ -7,6 +7,7 @@ All rights reserved.
 '''
 # pylint: disable=no-member
 # pylint: disable=no-name-in-module
+# pylint: disable=too-many-arguments
 # pylint: disable=ungrouped-imports
 from collections import defaultdict
 import os
@@ -18,7 +19,7 @@ from Bio import Seq, SeqIO, SeqRecord
 from fuzzywuzzy import fuzz
 from pysam import Samfile
 import pysam
-from synbiochem.utils import io_utils
+from synbiochem.utils import io_utils, thread_utils
 
 
 def get_reads(reads_filename, min_length=0):
@@ -36,27 +37,22 @@ def get_reads(reads_filename, min_length=0):
     return reads
 
 
-def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256):
+def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
+             num_threads=8):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
     max_barcode_len = max([len(barcode) for barcode in barcodes])
 
     if barcodes:
+
+        thread_pool = thread_utils.ThreadPool(num_threads)
+
         for seq in sequences:
-            trim_seq = str(seq.seq[:max_barcode_len + search_len])
-            max_score = score_threshold
-            selected_barcode = None
+            thread_pool.add_task(_bin_seq, seq, max_barcode_len, search_len,
+                                 score_threshold, barcodes, barcode_seqs)
 
-            for barcode in barcodes.values():
-                score = fuzz.partial_ratio(barcode, trim_seq)
-
-                if score > max_score:
-                    selected_barcode = barcode
-                    max_score = score
-
-            if selected_barcode:
-                barcode_seqs[selected_barcode].append(seq)
+        thread_pool.wait_completion()
     else:
         barcode_seqs['undefined'].extend(sequences)
 
@@ -173,6 +169,24 @@ def _get_reads(filename, min_length, reads):
                           if len(record.seq) > min_length])
     except (IOError, ValueError), err:
         print err
+
+
+def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
+             barcode_seqs):
+    '''Bin an individual sequence.'''
+    trim_seq = str(seq.seq[:max_barcode_len + search_len])
+    max_score = score_threshold
+    selected_barcode = None
+
+    for barcode in barcodes.values():
+        score = fuzz.partial_ratio(barcode, trim_seq)
+
+        if score > max_score:
+            selected_barcode = barcode
+            max_score = score
+
+    if selected_barcode:
+        barcode_seqs[selected_barcode].append(seq)
 
 
 def _replace_indels(sam_filename, templ_seq):
