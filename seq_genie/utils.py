@@ -45,7 +45,6 @@ def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
     max_barcode_len = max([len(barcode) for barcode in barcodes])
 
     if barcodes:
-
         thread_pool = thread_utils.ThreadPool(num_threads)
 
         for seq in sequences:
@@ -224,8 +223,6 @@ def _pcr(seq, forward_primer, reverse_primer):
 
     rev_primer_pos = \
         seq.find(str(Seq.Seq(reverse_primer).reverse_complement().upper()))
-
-    print str(for_primer_pos) + ' ' + str(rev_primer_pos)
 
     if for_primer_pos > -1 and rev_primer_pos > -1:
         seq = seq[for_primer_pos:] + \

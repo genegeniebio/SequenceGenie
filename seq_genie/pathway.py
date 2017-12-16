@@ -12,7 +12,6 @@ All rights reserved.
 from __future__ import division
 
 import os
-import random
 import sys
 import uuid
 
@@ -27,11 +26,10 @@ from seq_genie import utils
 class PathwayAligner(object):
     '''Class to align NGS data to pathways.'''
 
-    def __init__(self, barcodes_filename, reads_filename,
+    def __init__(self, barcodes_filename, reads_filename, ice_ids_filename,
+                 ice_url, ice_username, ice_password,
                  for_primer, rev_primer,
-                 ice_url, ice_username, ice_password, ice_ids,
-                 barcode_ice_filename=None,
-                 min_length=128, max_seqs=128000):
+                 barcode_ice_filename=None):
 
         self.__primers = [for_primer, rev_primer]
 
@@ -39,19 +37,18 @@ class PathwayAligner(object):
         self.__dir_name = str(uuid.uuid4())
         os.makedirs(self.__dir_name)
 
-        # Demultiplex barcoded reads:
-        reads = utils.get_reads(reads_filename, min_length)
-        self.__barcode_reads = utils.bin_seqs(_get_barcodes(barcodes_filename),
-                                              random.sample(reads,
-                                                            min(len(reads),
-                                                                max_seqs)))
-
         # Get pathway sequences from ICE:
         self.__ice_files = _get_ice_files(ice_url, ice_username, ice_password,
-                                          ice_ids, self.__dir_name)
+                                          ice_ids_filename, self.__dir_name)
 
         # Get barcode-ICE dict:
-        self.__barcode_ice = _get_barcode_ice(barcode_ice_filename)
+        self.__barcode_ice = _get_barcode_ice(barcode_ice_filename) \
+            if barcode_ice_filename else None
+
+        # Demultiplex barcoded reads:
+        reads = utils.get_reads(reads_filename)
+        self.__barcode_reads = utils.bin_seqs(_get_barcodes(barcodes_filename),
+                                              reads)
 
         # Initialise dataframes:
         self.__score_df = pd.DataFrame(columns=self.__ice_files.keys(),
@@ -92,9 +89,12 @@ def _get_barcodes(filename):
     return {row['well']: row['barcode'] for _, row in barcodes_df.iterrows()}
 
 
-def _get_ice_files(url, username, password, ice_ids, dir_name):
+def _get_ice_files(url, username, password, ice_ids_filename, dir_name):
     '''Get ICE sequences.'''
     ice_client = ice_utils.ICEClient(url, username, password)
+
+    with open(ice_ids_filename, 'rU') as ice_ids_file:
+        ice_ids = [line.strip() for line in ice_ids_file]
 
     return {ice_id:
             seq_utils.write_fasta({ice_id:
@@ -174,11 +174,7 @@ def _score(cons_sam_filename):
 
 def main(args):
     '''main method.'''
-    aligner = PathwayAligner(args[0], args[1], args[2], args[3],
-                             args[4], args[5], args[6],
-                             args[10:], args[7],
-                             int(args[8]), int(args[9]))
-
+    aligner = PathwayAligner(*args)
     aligner.score_alignments()
     score_df, mismatches_df = aligner.get_results()
 
