@@ -16,7 +16,6 @@ import sys
 import uuid
 
 from Bio import SeqIO
-import pysam
 from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 import pandas as pd
@@ -31,15 +30,15 @@ class PathwayAligner(object):
                  for_primer, rev_primer,
                  barcode_ice_filename=None):
 
-        self.__primers = [for_primer, rev_primer]
-
         # Initialise project directory:
         self.__dir_name = str(uuid.uuid4())
         os.makedirs(self.__dir_name)
 
         # Get pathway sequences from ICE:
         self.__ice_files = _get_ice_files(ice_url, ice_username, ice_password,
-                                          ice_ids_filename, self.__dir_name)
+                                          ice_ids_filename,
+                                          for_primer, rev_primer,
+                                          self.__dir_name)
 
         # Get barcode-ICE dict:
         self.__barcode_ice = _get_barcode_ice(barcode_ice_filename) \
@@ -65,13 +64,14 @@ class PathwayAligner(object):
         thread_pool = thread_utils.ThreadPool(num_threads)
 
         for barcode, reads in self.__barcode_reads.iteritems():
+            reads_filename = os.path.join(self.__dir_name, barcode + '.fasta')
+            SeqIO.write(reads, reads_filename, 'fasta')
+
             thread_pool.add_task(_score_alignment,
                                  self.__dir_name,
                                  barcode,
-                                 reads,
+                                 reads_filename,
                                  self.__ice_files,
-                                 self.__primers[0],
-                                 self.__primers[1],
                                  self.__barcode_ice,
                                  self.__score_df,
                                  self.__mismatches_df)
@@ -89,18 +89,22 @@ def _get_barcodes(filename):
     return {row['well']: row['barcode'] for _, row in barcodes_df.iterrows()}
 
 
-def _get_ice_files(url, username, password, ice_ids_filename, dir_name):
+def _get_ice_files(url, username, password, ice_ids_filename,
+                   for_primer, rev_primer, dir_name):
     '''Get ICE sequences.'''
     ice_client = ice_utils.ICEClient(url, username, password)
 
     with open(ice_ids_filename, 'rU') as ice_ids_file:
         ice_ids = [line.strip() for line in ice_ids_file]
 
+    seqs = [utils.pcr(ice_client.get_ice_entry(ice_id).get_seq(),
+                      for_primer, rev_primer)
+            for ice_id in ice_ids]
+
     return {ice_id:
-            seq_utils.write_fasta({ice_id:
-                                   ice_client.get_ice_entry(ice_id).get_seq()},
+            seq_utils.write_fasta({ice_id: seq},
                                   os.path.join(dir_name, ice_id + '.fasta'))
-            for ice_id in ice_ids}
+            for ice_id, seq in zip(ice_ids, seqs)}
 
 
 def _get_barcode_ice(barcode_ice_filename):
@@ -112,64 +116,37 @@ def _get_barcode_ice(barcode_ice_filename):
     return barcode_ice.set_index('barcode')['ice_id'].to_dict()
 
 
-def _score_alignment(dir_name, barcode, reads, ice_files,
-                     forward_primer, reverse_primer,
-                     barcode_ice,
+def _score_alignment(dir_name, barcode, reads_filename, ice_files, barcode_ice,
                      score_df, mismatches_df):
     '''Score an alignment.'''
-    reads_filename = os.path.join(dir_name, barcode + '.fasta')
-    SeqIO.write(reads, reads_filename, 'fasta')
-
     for ice_id, templ_filename in ice_files.iteritems():
         if not barcode_ice or barcode_ice[barcode] == ice_id:
             _score_barcode_ice(templ_filename, dir_name, barcode, ice_id,
-                               reads_filename, forward_primer, reverse_primer,
+                               reads_filename,
                                score_df, mismatches_df)
 
     score_df.to_csv('score.csv')
     mismatches_df.to_csv('mismatches.csv')
 
 
-def _score_barcode_ice(templ_filename, dir_name, barcode, ice_id,
-                       reads_filename, forward_primer, reverse_primer,
-                       score_df, mismatches_df):
+def _score_barcode_ice(templ_pcr_filename, dir_name, barcode, ice_id,
+                       reads_filename, score_df, mismatches_df):
     '''Score barcode ice pair.'''
-    templ_seq = utils.get_reads(templ_filename)[0].seq
+    templ_seq = utils.get_reads(templ_pcr_filename)[0].seq
 
     sam_filename = os.path.join(dir_name,
                                 barcode + '_' + ice_id + '.sam')
 
-    cons_sam_filename = os.path.join(
-        dir_name, barcode + '_' + ice_id + '_cons.sam')
-
     # Align:
-    utils.align(templ_filename, reads_filename, sam_filename)
+    utils.align(templ_pcr_filename, reads_filename, sam_filename)
 
     # Generate then align consensus:
-    fasta_filename = utils.get_consensus(sam_filename, templ_filename,
-                                         forward_primer,
-                                         reverse_primer)
+    vcf_filename = utils.call_variants(sam_filename, templ_pcr_filename)
 
-    utils.align(templ_filename, fasta_filename, cons_sam_filename)
-
-    matches, mismatches = utils.get_mismatches(cons_sam_filename,
-                                               templ_seq)
+    matches, mismatches = utils.get_mismatches(vcf_filename, templ_seq)
 
     score_df[ice_id][barcode] = matches
     mismatches_df[ice_id][barcode] = mismatches
-
-
-def _score(cons_sam_filename):
-    '''Scores consensus alignment.'''
-    cons_sam_file = pysam.AlignmentFile(cons_sam_filename, 'r')
-
-    score = sum([len(read.positions)
-                 for read in cons_sam_file.fetch()
-                 if read.reference_length])
-
-    cons_sam_file.close()
-
-    return score
 
 
 def main(args):

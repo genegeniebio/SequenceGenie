@@ -65,7 +65,7 @@ def index(filename):
 
 def align(templ_filename, reads_filename, out='align.sam', gap_open=6):
     '''Aligns sequences in barcoded bins.'''
-    # Align and sort:
+    # Align:
     sort(mem(reads_filename, templ_filename, gap_open=gap_open), out)
 
 
@@ -83,33 +83,31 @@ def mem(reads_filename, templ_filename, readtype='ont2d', gap_open=6):
     return out_file.name
 
 
-def get_consensus(sam_filename, templ_filename,
-                  for_primer, rev_primer):
+def call_variants(sam_filename, templ_filename, dp_filter=100):
     '''Convert files.'''
     bam_filename = sam_filename + '.bam'
-    fastq_filename = sam_filename + '.fastq'
-    fasta_filename = sam_filename + '.fasta'
+    vcf_filename = sam_filename + '.vcf'
+
     pysam.view(sam_filename, '-o', bam_filename, catch_stdout=False)
     pysam.sort('-o', bam_filename, bam_filename)
 
-    with open(fastq_filename, 'w') as fastq:
-        proc1 = subprocess.Popen(['samtools', 'mpileup', '-uf',
-                                  templ_filename, bam_filename],
-                                 stdout=subprocess.PIPE)
+    proc1 = subprocess.Popen(['samtools',
+                              'mpileup',
+                              '-uvf',
+                              templ_filename,
+                              '-t', 'DP',
+                              bam_filename],
+                             stdout=subprocess.PIPE)
 
-        proc2 = subprocess.Popen(['bcftools', 'call', '-c', '--ploidy', '1'],
-                                 stdin=proc1.stdout, stdout=subprocess.PIPE)
-        proc1.stdout.close()
-        proc3 = subprocess.Popen(['perl', '/Applications/bcftools/vcfutils.pl',
-                                  'vcf2fq', '-d', '12'],
-                                 stdin=proc2.stdout, stdout=subprocess.PIPE)
-        proc2.stdout.close()
-        stdout, _ = proc3.communicate()
-        fastq.write(stdout)
+    subprocess.call(['bcftools',
+                     'filter',
+                     '-i', 'FMT/DP>' + str(dp_filter),
+                     '-o', vcf_filename],
+                    stdin=proc1.stdout)
 
-    _convert_consensus(fastq_filename, fasta_filename, for_primer, rev_primer)
+    proc1.stdout.close()
 
-    return fasta_filename
+    return vcf_filename
 
 
 def sort(in_filename, out_filename):
@@ -127,6 +125,41 @@ def sort(in_filename, out_filename):
     out_file.close()
 
     return out_filename
+
+
+def pcr(seq, forward_primer, reverse_primer):
+    '''Apply in silico PCR.'''
+    for_primer_pos = seq.find(forward_primer.upper())
+
+    rev_primer_pos = \
+        seq.find(str(Seq.Seq(reverse_primer).reverse_complement().upper()))
+
+    if for_primer_pos > -1 and rev_primer_pos > -1:
+        seq = seq[for_primer_pos:] + \
+            seq[:rev_primer_pos + len(reverse_primer)]
+    elif for_primer_pos > -1:
+        seq = seq[for_primer_pos:]
+    elif rev_primer_pos > -1:
+        seq = seq[:rev_primer_pos + len(reverse_primer)]
+
+    return seq
+
+
+def get_mismatches(vcf_filename, templ_seq):
+    '''Find mismatches in samfile relative to template sequence.'''
+    matches = 0
+    mismatches = []
+
+    bcf_in = pysam.VariantFile(vcf_filename)
+
+    for record in bcf_in.fetch():
+        if record.ref != templ_seq[record.pos]:
+            mismatches.append(templ_seq[record.pos] + str(record.pos + 1) +
+                              record.ref)
+        else:
+            matches += 1
+
+    return matches, mismatches
 
 
 def reject_indels(sam_filename, templ_seq, out_filename=None):
@@ -202,57 +235,3 @@ def _replace_indels(sam_filename, templ_seq):
 
         if seq:
             yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
-
-
-def _convert_consensus(fastq_filename, fasta_filename, for_primer, rev_primer):
-    '''Convert consensus sequence to fasta.'''
-    with open(fastq_filename, 'r') as fastq:
-        seq_record = SeqIO.read(fastq, 'fastq')
-
-    seq = _pcr(str(seq_record.seq.upper()), for_primer, rev_primer)
-
-    with open(fasta_filename, 'w') as fasta:
-        SeqIO.write(SeqRecord.SeqRecord(Seq.Seq(seq),
-                                        id=seq_record.id),
-                    fasta, 'fasta')
-
-
-def _pcr(seq, forward_primer, reverse_primer):
-    '''Apply in silico PCR.'''
-    for_primer_pos = seq.find(forward_primer.upper())
-
-    rev_primer_pos = \
-        seq.find(str(Seq.Seq(reverse_primer).reverse_complement().upper()))
-
-    if for_primer_pos > -1 and rev_primer_pos > -1:
-        seq = seq[for_primer_pos:] + \
-            seq[:rev_primer_pos + len(reverse_primer)]
-    elif for_primer_pos > -1:
-        seq = seq[for_primer_pos:]
-    elif rev_primer_pos > -1:
-        seq = seq[:rev_primer_pos + len(reverse_primer)]
-
-    return seq
-
-
-def get_mismatches(sam_filename, templ_seq):
-    '''Find mismatches in samfile relative to template sequence.'''
-    matches = 0
-    mismatches = []
-
-    sam_file = Samfile(sam_filename, 'r')
-
-    for read in sam_file:
-        for pair in read.aligned_pairs:
-            if pair[1] is not None:
-                if read.seq[pair[0]] != templ_seq[pair[1]]:
-                    mismatches.append(templ_seq[pair[1]] + str(pair[1] + 1) +
-                                      read.seq[pair[0]])
-                else:
-                    matches += 1
-
-    return matches, mismatches
-
-
-# templ = get_reads('3955.fasta')[0]
-# print get_mismatches('cons.sam', templ.seq)
