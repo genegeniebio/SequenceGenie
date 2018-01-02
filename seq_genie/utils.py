@@ -153,8 +153,8 @@ def get_mismatches(vcf_filename, templ_seq):
     bcf_in = pysam.VariantFile(vcf_filename)
 
     for record in bcf_in.fetch():
-        if record.ref != templ_seq[record.pos]:
-            mismatches.append(templ_seq[record.pos] + str(record.pos + 1) +
+        if record.ref != templ_seq[record.pos - 1]:
+            mismatches.append(templ_seq[record.pos - 1] + str(record.pos) +
                               record.ref)
         else:
             matches += 1
