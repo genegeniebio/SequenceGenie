@@ -5,21 +5,19 @@ All rights reserved.
 
 @author: neilswainston
 '''
-# pylint: disable=no-member
+# pylint: disable=invalid-name
 # pylint: disable=no-name-in-module
 # pylint: disable=too-many-arguments
-# pylint: disable=ungrouped-imports
 from collections import defaultdict
 import os
 from os.path import splitext
 import subprocess
-import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
 from fuzzywuzzy import fuzz
 from pysam import Samfile
-import pysam
 from synbiochem.utils import io_utils, thread_utils
+import pandas as pd
 
 
 def get_reads(reads_filename, min_length=0):
@@ -63,33 +61,24 @@ def index(filename):
     subprocess.call(['bwa', 'index', filename])
 
 
-def align(templ_filename, reads_filename, out='align.sam', gap_open=6):
-    '''Aligns sequences in barcoded bins.'''
-    # Align:
-    sort(mem(reads_filename, templ_filename, gap_open=gap_open), out)
-
-
-def mem(reads_filename, templ_filename, readtype='ont2d', gap_open=6):
+def mem(templ_filename, reads_filename, out_filename=None,
+        readtype='ont2d', gap_open=6):
     '''Runs BWA MEM.'''
-    out_file = tempfile.NamedTemporaryFile(delete=False)
+    out_file = io_utils.get_filename(out_filename)
 
-    with open(out_file.name, 'w') as out:
+    with open(out_file, 'w') as out:
         subprocess.call(['bwa', 'mem',
                          '-x', readtype,
                          '-O', str(gap_open),
                          templ_filename, reads_filename],
                         stdout=out)
 
-    return out_file.name
+    return out_file
 
 
-def call_variants(sam_filename, templ_filename, dp_filter=100):
-    '''Convert files.'''
-    bam_filename = sam_filename + '.bam'
-    vcf_filename = sam_filename + '.vcf'
-
-    pysam.view(sam_filename, '-o', bam_filename, catch_stdout=False)
-    pysam.sort('-o', bam_filename, bam_filename)
+def get_vcf(bam_filename, templ_filename, dp_filter):
+    '''Generates a vcf file.'''
+    vcf_filename = bam_filename + '.vcf'
 
     proc1 = subprocess.Popen(['samtools',
                               'mpileup',
@@ -145,17 +134,31 @@ def pcr(seq, forward_primer, reverse_primer):
     return seq
 
 
-def get_mismatches(vcf_filename, templ_seq):
+def get_mismatches(vcf_filename):
     '''Find mismatches in samfile relative to template sequence.'''
     matches = 0
     mismatches = []
 
-    bcf_in = pysam.VariantFile(vcf_filename)
+    df = _vcf_to_df(vcf_filename)
 
-    for record in bcf_in.fetch():
-        if record.ref != templ_seq[record.pos - 1]:
-            mismatches.append(templ_seq[record.pos - 1] + str(record.pos) +
-                              record.ref)
+    for _, row in df.iterrows():
+        alleles = [row['REF']] + row['ALT'].split(',')
+
+        # PL values are ordered according to following:
+        idx_allele = {(x**2 + 3 * x) / 2: allele
+                      for x, allele in enumerate(alleles)}
+
+        # Extract PL values and order to find most-likely base:
+        pl_index = row['FORMAT'].split(':').index('PL')
+        pls = row['DATA'].split(':')[pl_index].split(',')
+
+        allele_pls = [[allele, int(pls[idx])]
+                      for idx, allele in idx_allele.iteritems()]
+        allele_pls.sort(key=lambda x: x[1])
+
+        # Compare most-likely base to reference:
+        if row['REF'] != allele_pls[0][0]:
+            mismatches.append(row['REF'] + row['POS'] + allele_pls[0][0])
         else:
             matches += 1
 
@@ -219,6 +222,22 @@ def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
 
     if selected_barcode:
         barcode_seqs[selected_barcode].append(seq)
+
+
+def _vcf_to_df(vcf_filename):
+    '''Convert vcf to Pandas dataframe.'''
+    data = []
+
+    with open(vcf_filename) as vcf:
+        for line in vcf:
+            if line.startswith('##'):
+                pass
+            elif line.startswith('#'):
+                columns = line[1:].split()[:-1] + ['DATA']
+            else:
+                data.append(line.split())
+
+    return pd.DataFrame(columns=columns, data=data)
 
 
 def _replace_indels(sam_filename, templ_seq):

@@ -16,6 +16,7 @@ import sys
 import uuid
 
 from Bio import SeqIO
+import pysam
 from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 import pandas as pd
@@ -28,7 +29,8 @@ class PathwayAligner(object):
     def __init__(self, barcodes_filename, reads_filename, ice_ids_filename,
                  ice_url, ice_username, ice_password,
                  for_primer, rev_primer,
-                 barcode_ice_filename=None):
+                 barcode_ice_filename=None,
+                 dp_filter=100):
 
         # Initialise project directory:
         self.__dir_name = str(uuid.uuid4())
@@ -53,8 +55,15 @@ class PathwayAligner(object):
         self.__score_df = pd.DataFrame(columns=self.__ice_files.keys(),
                                        index=self.__barcode_reads.keys())
 
+        self.__score_df.reindex_axis(sorted(self.__score_df.columns), axis=1)
+
         self.__mismatches_df = pd.DataFrame(columns=self.__ice_files.keys(),
                                             index=self.__barcode_reads.keys())
+
+        self.__mismatches_df.reindex_axis(sorted(self.__mismatches_df.columns),
+                                          axis=1)
+
+        self.__dp_filter = dp_filter
 
     def score_alignments(self, num_threads=8):
         '''Score alignments.'''
@@ -74,7 +83,8 @@ class PathwayAligner(object):
                                  self.__ice_files,
                                  self.__barcode_ice,
                                  self.__score_df,
-                                 self.__mismatches_df)
+                                 self.__mismatches_df,
+                                 self.__dp_filter)
 
         thread_pool.wait_completion()
 
@@ -117,33 +127,37 @@ def _get_barcode_ice(barcode_ice_filename):
 
 
 def _score_alignment(dir_name, barcode, reads_filename, ice_files, barcode_ice,
-                     score_df, mismatches_df):
+                     score_df, mismatches_df, dp_filter):
     '''Score an alignment.'''
     for ice_id, templ_filename in ice_files.iteritems():
         if not barcode_ice or barcode_ice[barcode] == ice_id:
             _score_barcode_ice(templ_filename, dir_name, barcode, ice_id,
                                reads_filename,
-                               score_df, mismatches_df)
+                               score_df, mismatches_df, dp_filter)
 
     score_df.to_csv('score.csv')
     mismatches_df.to_csv('mismatches.csv')
 
 
 def _score_barcode_ice(templ_pcr_filename, dir_name, barcode, ice_id,
-                       reads_filename, score_df, mismatches_df):
+                       reads_filename, score_df, mismatches_df, dp_filter):
     '''Score barcode ice pair.'''
-    templ_seq = utils.get_reads(templ_pcr_filename)[0].seq
-
-    sam_filename = os.path.join(dir_name,
-                                barcode + '_' + ice_id + '.sam')
+    sam_filename = os.path.join(dir_name, barcode + '_' + ice_id + '.sam')
+    bam_filename = os.path.join(dir_name, barcode + '_' + ice_id + '.bam')
 
     # Align:
-    utils.align(templ_pcr_filename, reads_filename, sam_filename)
+    utils.mem(templ_pcr_filename, reads_filename, sam_filename)
 
-    # Generate then align consensus:
-    vcf_filename = utils.call_variants(sam_filename, templ_pcr_filename)
+    # Convert sam to bam and sort:
+    pysam.view(sam_filename, '-o', bam_filename, catch_stdout=False)
+    pysam.sort('-o', bam_filename, bam_filename)
+    os.remove(sam_filename)
 
-    matches, mismatches = utils.get_mismatches(vcf_filename, templ_seq)
+    # Generate variants file:
+    vcf_filename = utils.get_vcf(bam_filename, templ_pcr_filename, dp_filter)
+
+    # Analyse variants file:
+    matches, mismatches = utils.get_mismatches(vcf_filename)
 
     score_df[ice_id][barcode] = matches
     mismatches_df[ice_id][barcode] = mismatches
