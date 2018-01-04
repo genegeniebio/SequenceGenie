@@ -28,9 +28,7 @@ class PathwayAligner(object):
 
     def __init__(self, barcodes_filename, reads_filename, ice_ids_filename,
                  ice_url, ice_username, ice_password,
-                 for_primer, rev_primer,
-                 barcode_ice_filename=None,
-                 dp_filter=100):
+                 for_primer, rev_primer, dp_filter=100):
 
         # Initialise project directory:
         self.__dir_name = str(uuid.uuid4())
@@ -42,27 +40,19 @@ class PathwayAligner(object):
                                           for_primer, rev_primer,
                                           self.__dir_name)
 
-        # Get barcode-ICE dict:
-        self.__barcode_ice = _get_barcode_ice(barcode_ice_filename) \
-            if barcode_ice_filename else None
-
         # Demultiplex barcoded reads:
         reads = utils.get_reads(reads_filename)
-        self.__barcode_reads = utils.bin_seqs(_get_barcodes(barcodes_filename),
-                                              reads)
+        self.__summary_df = pd.read_csv(barcodes_filename)
+        self.__barcode_reads = utils.bin_seqs(
+            self.__summary_df['barcode'].tolist(), reads)
 
         # Initialise dataframes:
-        self.__identity_df = pd.DataFrame(columns=self.__ice_files.keys(),
+        columns = sorted(self.__ice_files.keys())
+        self.__identity_df = pd.DataFrame(columns=columns,
                                           index=self.__barcode_reads.keys())
 
-        self.__identity_df.reindex_axis(
-            sorted(self.__identity_df.columns), axis=1)
-
-        self.__mutations_df = pd.DataFrame(columns=self.__ice_files.keys(),
+        self.__mutations_df = pd.DataFrame(columns=columns,
                                            index=self.__barcode_reads.keys())
-
-        self.__mutations_df.reindex_axis(sorted(self.__mutations_df.columns),
-                                         axis=1)
 
         self.__dp_filter = dp_filter
 
@@ -82,7 +72,6 @@ class PathwayAligner(object):
                                  barcode,
                                  reads_filename,
                                  self.__ice_files,
-                                 self.__barcode_ice,
                                  self.__identity_df,
                                  self.__mutations_df,
                                  self.__dp_filter)
@@ -91,13 +80,7 @@ class PathwayAligner(object):
 
     def get_results(self):
         '''Get results.'''
-        return self.__identity_df, self.__mutations_df
-
-
-def _get_barcodes(filename):
-    '''Get barcode sequences.'''
-    barcodes_df = pd.read_csv(filename)
-    return {row['well']: row['barcode'] for _, row in barcodes_df.iterrows()}
+        return self.__summary_df, self.__identity_df, self.__mutations_df
 
 
 def _get_ice_files(url, username, password, ice_ids_filename,
@@ -128,18 +111,17 @@ def _get_barcode_ice(barcode_ice_filename):
     return barcode_ice.set_index('barcode')['ice_id'].to_dict()
 
 
-def _score_alignment(dir_name, barcode, reads_filename, ice_files, barcode_ice,
+def _score_alignment(dir_name, barcode, reads_filename, ice_files,
                      identity_df, mutations_df, dp_filter):
     '''Score an alignment.'''
     for ice_id, (templ_filename, templ_len) in ice_files.iteritems():
-        if not barcode_ice or barcode_ice[barcode] == ice_id:
-            _score_barcode_ice(templ_filename, templ_len, dir_name, barcode,
-                               ice_id,
-                               reads_filename,
-                               identity_df, mutations_df, dp_filter)
+        _score_barcode_ice(templ_filename, templ_len, dir_name, barcode,
+                           ice_id,
+                           reads_filename,
+                           identity_df, mutations_df, dp_filter)
 
-    identity_df.to_csv('score.csv')
-    mutations_df.to_csv('mismatches.csv')
+        identity_df.to_csv('identity.csv')
+        mutations_df.to_csv('mutations.csv')
 
 
 def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
@@ -171,10 +153,11 @@ def main(args):
     '''main method.'''
     aligner = PathwayAligner(*args)
     aligner.score_alignments()
-    identity_df, mutations_df = aligner.get_results()
+    summary_df, identity_df, mutations_df = aligner.get_results()
 
-    identity_df.to_csv('score.csv')
-    mutations_df.to_csv('mismatches.csv')
+    summary_df.to_csv('summary.csv')
+    identity_df.to_csv('identity.csv')
+    mutations_df.to_csv('mutations.csv')
 
 
 if __name__ == '__main__':

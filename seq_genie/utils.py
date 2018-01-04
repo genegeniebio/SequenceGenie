@@ -213,7 +213,7 @@ def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
     max_score = score_threshold
     selected_barcode = None
 
-    for barcode in barcodes.values():
+    for barcode in barcodes:
         score = fuzz.partial_ratio(barcode, trim_seq)
 
         if score > max_score:
