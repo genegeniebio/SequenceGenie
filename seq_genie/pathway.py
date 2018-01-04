@@ -54,6 +54,9 @@ class PathwayAligner(object):
         self.__mutations_df = pd.DataFrame(columns=columns,
                                            index=self.__barcode_reads.keys())
 
+        self.__identity_df.index.name = 'barcode'
+        self.__mutations_df.index.name = 'barcode'
+
         self.__dp_filter = dp_filter
 
     def score_alignments(self, num_threads=8):
@@ -77,6 +80,13 @@ class PathwayAligner(object):
                                  self.__dp_filter)
 
         thread_pool.wait_completion()
+
+        # Update summary:
+        self.__summary_df['ice_id'] = self.__identity_df.idxmax(axis=1)
+        self.__summary_df['identity'] = self.__identity_df.max(axis=1)
+        self.__summary_df['mutations'] = \
+            self.__mutations_df.lookup(self.__mutations_df.index,
+                                       self.__summary_df['ice_id'])
 
     def get_results(self):
         '''Get results.'''
