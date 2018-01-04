@@ -52,22 +52,23 @@ class PathwayAligner(object):
                                               reads)
 
         # Initialise dataframes:
-        self.__score_df = pd.DataFrame(columns=self.__ice_files.keys(),
-                                       index=self.__barcode_reads.keys())
+        self.__identity_df = pd.DataFrame(columns=self.__ice_files.keys(),
+                                          index=self.__barcode_reads.keys())
 
-        self.__score_df.reindex_axis(sorted(self.__score_df.columns), axis=1)
+        self.__identity_df.reindex_axis(
+            sorted(self.__identity_df.columns), axis=1)
 
-        self.__mismatches_df = pd.DataFrame(columns=self.__ice_files.keys(),
-                                            index=self.__barcode_reads.keys())
+        self.__mutations_df = pd.DataFrame(columns=self.__ice_files.keys(),
+                                           index=self.__barcode_reads.keys())
 
-        self.__mismatches_df.reindex_axis(sorted(self.__mismatches_df.columns),
-                                          axis=1)
+        self.__mutations_df.reindex_axis(sorted(self.__mutations_df.columns),
+                                         axis=1)
 
         self.__dp_filter = dp_filter
 
     def score_alignments(self, num_threads=8):
         '''Score alignments.'''
-        for templ_filename in self.__ice_files.values():
+        for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
 
         thread_pool = thread_utils.ThreadPool(num_threads)
@@ -82,15 +83,15 @@ class PathwayAligner(object):
                                  reads_filename,
                                  self.__ice_files,
                                  self.__barcode_ice,
-                                 self.__score_df,
-                                 self.__mismatches_df,
+                                 self.__identity_df,
+                                 self.__mutations_df,
                                  self.__dp_filter)
 
         thread_pool.wait_completion()
 
     def get_results(self):
         '''Get results.'''
-        return self.__score_df, self.__mismatches_df
+        return self.__identity_df, self.__mutations_df
 
 
 def _get_barcodes(filename):
@@ -112,8 +113,9 @@ def _get_ice_files(url, username, password, ice_ids_filename,
             for ice_id in ice_ids]
 
     return {ice_id:
-            seq_utils.write_fasta({ice_id: seq},
-                                  os.path.join(dir_name, ice_id + '.fasta'))
+            (seq_utils.write_fasta({ice_id: seq},
+                                   os.path.join(dir_name, ice_id + '.fasta')),
+             len(seq))
             for ice_id, seq in zip(ice_ids, seqs)}
 
 
@@ -127,20 +129,22 @@ def _get_barcode_ice(barcode_ice_filename):
 
 
 def _score_alignment(dir_name, barcode, reads_filename, ice_files, barcode_ice,
-                     score_df, mismatches_df, dp_filter):
+                     identity_df, mutations_df, dp_filter):
     '''Score an alignment.'''
-    for ice_id, templ_filename in ice_files.iteritems():
+    for ice_id, (templ_filename, templ_len) in ice_files.iteritems():
         if not barcode_ice or barcode_ice[barcode] == ice_id:
-            _score_barcode_ice(templ_filename, dir_name, barcode, ice_id,
+            _score_barcode_ice(templ_filename, templ_len, dir_name, barcode,
+                               ice_id,
                                reads_filename,
-                               score_df, mismatches_df, dp_filter)
+                               identity_df, mutations_df, dp_filter)
 
-    score_df.to_csv('score.csv')
-    mismatches_df.to_csv('mismatches.csv')
+    identity_df.to_csv('score.csv')
+    mutations_df.to_csv('mismatches.csv')
 
 
-def _score_barcode_ice(templ_pcr_filename, dir_name, barcode, ice_id,
-                       reads_filename, score_df, mismatches_df, dp_filter):
+def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
+                       ice_id, reads_filename, identity_df, mutations_df,
+                       dp_filter):
     '''Score barcode ice pair.'''
     sam_filename = os.path.join(dir_name, barcode + '_' + ice_id + '.sam')
     bam_filename = os.path.join(dir_name, barcode + '_' + ice_id + '.bam')
@@ -159,18 +163,18 @@ def _score_barcode_ice(templ_pcr_filename, dir_name, barcode, ice_id,
     # Analyse variants file:
     matches, mismatches = utils.get_mismatches(vcf_filename)
 
-    score_df[ice_id][barcode] = matches
-    mismatches_df[ice_id][barcode] = mismatches
+    identity_df[ice_id][barcode] = matches / float(templ_len)
+    mutations_df[ice_id][barcode] = mismatches
 
 
 def main(args):
     '''main method.'''
     aligner = PathwayAligner(*args)
     aligner.score_alignments()
-    score_df, mismatches_df = aligner.get_results()
+    identity_df, mutations_df = aligner.get_results()
 
-    score_df.to_csv('score.csv')
-    mismatches_df.to_csv('mismatches.csv')
+    identity_df.to_csv('score.csv')
+    mutations_df.to_csv('mismatches.csv')
 
 
 if __name__ == '__main__':
