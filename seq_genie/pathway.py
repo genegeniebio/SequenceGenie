@@ -26,12 +26,13 @@ from seq_genie import utils
 class PathwayAligner(object):
     '''Class to align NGS data to pathways.'''
 
-    def __init__(self, barcodes_filename, reads_filename, ice_ids_filename,
+    def __init__(self, out_dir,
+                 barcodes_filename, reads_filename, ice_ids_filename,
                  ice_url, ice_username, ice_password,
                  for_primer, rev_primer, dp_filter=100):
 
         # Initialise project directory:
-        self.__dir_name = str(uuid.uuid4())
+        self.__dir_name = os.path.join(out_dir, str(uuid.uuid4()))
         os.makedirs(self.__dir_name)
 
         # Get pathway sequences from ICE:
