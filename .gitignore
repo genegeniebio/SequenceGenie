@@ -102,8 +102,7 @@ ENV/
 
 /.project
 /.pydevproject
-
-/**/*.fasta.*
-/**/*.sam*
-/**/*.ugenedb
 /**/.DS_Store
+/results
+/data/**/*sam*
+/data/**/*ugenedb*

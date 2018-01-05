@@ -131,8 +131,8 @@ def _score_alignment(dir_name, barcode, reads_filename, ice_files,
                            reads_filename,
                            identity_df, mutations_df, dp_filter)
 
-        identity_df.to_csv('identity.csv')
-        mutations_df.to_csv('mutations.csv')
+        identity_df.to_csv(os.path.join(dir_name, 'identity.csv'))
+        mutations_df.to_csv(os.path.join(dir_name, 'mutations.csv'))
 
 
 def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
@@ -165,10 +165,6 @@ def main(args):
     aligner = PathwayAligner(*args)
     aligner.score_alignments()
     summary_df, identity_df, mutations_df = aligner.get_results()
-
-    summary_df.to_csv('summary.csv')
-    identity_df.to_csv('identity.csv')
-    mutations_df.to_csv('mutations.csv')
 
 
 if __name__ == '__main__':
