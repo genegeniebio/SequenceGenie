@@ -47,16 +47,17 @@ class PathwayAligner(object):
         self.__barcode_reads = utils.bin_seqs(
             self.__summary_df['barcode'].tolist(), reads)
 
+        self.__summary_df.set_index('barcode', inplace=True)
+
         # Initialise dataframes:
         columns = sorted(self.__ice_files.keys())
         self.__identity_df = pd.DataFrame(columns=columns,
-                                          index=self.__barcode_reads.keys())
+                                          index=self.__summary_df.index,
+                                          dtype='float')
 
         self.__mutations_df = pd.DataFrame(columns=columns,
-                                           index=self.__barcode_reads.keys())
-
-        self.__identity_df.index.name = 'barcode'
-        self.__mutations_df.index.name = 'barcode'
+                                           index=self.__summary_df.index,
+                                           dtype='float')
 
         self.__dp_filter = dp_filter
 
@@ -83,11 +84,14 @@ class PathwayAligner(object):
         thread_pool.wait_completion()
 
         # Update summary:
+        self.__identity_df.fillna(0, inplace=True)
         self.__summary_df['ice_id'] = self.__identity_df.idxmax(axis=1)
         self.__summary_df['identity'] = self.__identity_df.max(axis=1)
         self.__summary_df['mutations'] = \
             self.__mutations_df.lookup(self.__mutations_df.index,
                                        self.__summary_df['ice_id'])
+
+        self.__summary_df.to_csv(os.path.join(self.__dir_name, 'summary.csv'))
 
     def get_results(self):
         '''Get results.'''
@@ -164,7 +168,6 @@ def main(args):
     '''main method.'''
     aligner = PathwayAligner(*args)
     aligner.score_alignments()
-    summary_df, identity_df, mutations_df = aligner.get_results()
 
 
 if __name__ == '__main__':
