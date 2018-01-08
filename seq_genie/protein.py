@@ -13,41 +13,42 @@ from operator import itemgetter
 import os
 import sys
 
-from Bio.Seq import Seq
+from Bio import Seq, SeqIO
 from pysal.inequality import gini
-from pysam import AlignmentFile
+from synbiochem.utils import mut_utils, seq_utils
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import pandas as pd
 from seq_genie import utils
-from synbiochem.utils import mut_utils, seq_utils
 
 
-def align(templ_filename, reads_files, filtr=False):
+def align(templ_filename, reads_filename, filtr=False):
     '''Align sequence files.'''
-    align_files = []
-    templ_seq = list(utils.get_reads(templ_filename))[0].seq
+    templ_seq = utils.get_reads(templ_filename)[0].seq
+    reads_combined_filename = reads_filename + '.fasta'
 
-    for reads_file in reads_files:
-        # Align raw file:
-        sam_filename = reads_file + '_raw.sam'
-        align_filename = sam_filename
-        utils.align(templ_filename, utils.get_reads(reads_file),
-                    out=sam_filename,
-                    gap_open=12)
+    with open(reads_combined_filename, "w") as reads_file:
+        SeqIO.write(utils.get_reads(reads_filename), reads_file, "fasta")
 
-        if filtr:
-            # Filter indels:
-            sam_filt_flename = reads_file + '_filtered.sam'
-            align_filename = sam_filt_flename
-            utils.reject_indels(sam_filename, templ_seq,
-                                out_filename=sam_filt_flename)
+    sam_filename = reads_filename + '_raw.sam'
+    align_filename = sam_filename
 
-        align_files.append(AlignmentFile(align_filename, 'r'))
+    utils.index(templ_filename)
 
-    return align_files
+    utils.mem(templ_filename, reads_combined_filename,
+              out_filename=sam_filename,
+              gap_open=12)
+
+    if filtr:
+        # Filter indels:
+        sam_filt_flename = reads_file + '_filtered.sam'
+        align_filename = sam_filt_flename
+        utils.reject_indels(sam_filename, templ_seq,
+                            out_filename=sam_filt_flename)
+
+    return align_filename
 
 
 def analyse_dna_mut(sam_files, templ_seq):
@@ -99,7 +100,7 @@ def analyse_aa_mut(sam_files, templ_aa_seq):
 
 def _analyse_aa_mut(read, template_aa):
     '''Analyse amino acid mutations in a single read.'''
-    read_dna = Seq(read.seq[read.qstart:read.qend])
+    read_dna = Seq.Seq(read.seq[read.qstart:read.qend])
     read_aa = read_dna.translate()
 
     if len(read_aa) == len(template_aa):

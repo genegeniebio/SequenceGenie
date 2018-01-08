@@ -10,13 +10,14 @@ import os
 import sys
 
 from Bio import SeqIO, SeqRecord
-
-from seq_genie import protein, utils
+import pysam
 from synbiochem.utils.mut_utils import get_mutations
 from synbiochem.utils.seq_utils import INV_NUCL_CODES
 
+from seq_genie import protein, utils
 
-def _analyse(sam_files, templ_filename, mut_templ_filename):
+
+def _analyse(sam_filename, templ_filename, mut_templ_filename):
     '''Analyse.'''
     templ_dir = os.path.dirname(templ_filename)
     nucl_filename = os.path.join(templ_dir, 'nucl.fasta')
@@ -28,25 +29,22 @@ def _analyse(sam_files, templ_filename, mut_templ_filename):
     mut_templ_seq = list(utils.get_reads(mut_templ_filename))[0].seq
 
     # Strip N and spurious mutations:
+    nucl_seqs = _strip(sam_filename, templ_seq, mut_templ_seq)
+
     with open(nucl_filename, 'w') as nucl_file:
-        nucl_seqs = []
-
-        for sam_file in sam_files:
-            nucl_seqs.extend(_strip(sam_file, templ_seq, mut_templ_seq))
-
         SeqIO.write(nucl_seqs, nucl_file, 'fasta')
 
-        # Translate nucl seqs:
-        _trans_nucl(aa_filename, res_filename, templ_seq, nucl_seqs)
+    # Translate nucl seqs:
+    _trans_nucl(aa_filename, res_filename, templ_seq, nucl_seqs)
 
-    protein.align(templ_filename, [nucl_filename])
+    protein.align(templ_filename, nucl_filename)
 
 
-def _strip(sam_file, templ_seq, mut_templ_seq):
+def _strip(sam_filename, templ_seq, mut_templ_seq):
     '''Replace N and spurious mutations with wildtype.'''
     nucl_seqs = []
 
-    for read in sam_file:
+    for read in pysam.AlignmentFile(sam_filename, 'r'):
         # Perform mapping of nucl indices to remove N:
         if read.aligned_pairs:
             templ_idx = zip(*read.aligned_pairs)[1]
@@ -101,8 +99,8 @@ def _trans_nucl(aa_filename, res_filename, templ_seq, nucl_seqs):
 def main(args):
     '''main method.'''
     # Align:
-    sam_files = protein.align(args[0], args[2:])
-    _analyse(sam_files, args[0], args[1])
+    sam_filename = protein.align(args[0], args[2])
+    _analyse(sam_filename, args[0], args[1])
 
 
 if __name__ == '__main__':
