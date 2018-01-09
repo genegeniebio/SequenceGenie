@@ -29,8 +29,8 @@ def align(templ_filename, reads_filename, filtr=False):
     templ_seq = utils.get_reads(templ_filename)[0].seq
     reads_combined_filename = reads_filename + '.fasta'
 
-    with open(reads_combined_filename, "w") as reads_file:
-        SeqIO.write(utils.get_reads(reads_filename), reads_file, "fasta")
+    with open(reads_combined_filename, 'w') as reads_file:
+        SeqIO.write(utils.get_reads(reads_filename), reads_file, 'fasta')
 
     sam_filename = reads_filename + '_raw.sam'
     align_filename = sam_filename

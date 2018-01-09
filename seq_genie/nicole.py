@@ -19,10 +19,10 @@ from seq_genie import protein, utils
 
 def _analyse(sam_filename, templ_filename, mut_templ_filename):
     '''Analyse.'''
-    templ_dir = os.path.dirname(templ_filename)
-    nucl_filename = os.path.join(templ_dir, 'nucl.fasta')
-    aa_filename = os.path.join(templ_dir, 'aa.fasta')
-    res_filename = os.path.join(templ_dir, 'out.tsv')
+    out_dir_name = os.path.dirname(sam_filename)
+    nucl_filename = os.path.join(out_dir_name, 'nucl.fasta')
+    aa_filename = os.path.join(out_dir_name, 'aa.fasta')
+    res_filename = os.path.join(out_dir_name, 'out.tsv')
 
     # Get sequences:
     templ_seq = list(utils.get_reads(templ_filename))[0].seq
