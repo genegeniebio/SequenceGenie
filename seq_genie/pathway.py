@@ -98,6 +98,10 @@ class PathwayAligner(object):
             self.__mutations_df.lookup(self.__deletions_df.index,
                                        self.__summary_df['ice_id'])
 
+        # Remove spurious unidentified entries:
+        self.__summary_df = \
+            self.__summary_df[self.__summary_df['identity'] != 0]
+
         self.__summary_df.to_csv(os.path.join(self.__dir_name, 'summary.csv'))
 
     def get_results(self):
