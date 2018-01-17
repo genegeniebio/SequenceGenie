@@ -135,35 +135,40 @@ def pcr(seq, forward_primer, reverse_primer):
     return seq
 
 
-def get_mismatches(vcf_filename):
-    '''Find mismatches in samfile relative to template sequence.'''
-    matches = 0
-    mismatches = []
+def analyse_vcf(vcf_filename):
+    '''Analyse vcf file, returning number of matches, mutations and indels.'''
+    num_matches = 0
+    mutations = []
+    deletions = []
 
     df = _vcf_to_df(vcf_filename)
 
-    for _, row in df.iterrows():
-        alleles = [row['REF']] + row['ALT'].split(',')
+    for pos in range(1, df.index[-1] + 1):
+        try:
+            row = df.loc[pos]
+            alleles = [row['REF']] + row['ALT'].split(',')
 
-        # PL values are ordered according to following:
-        idx_allele = {(x**2 + 3 * x) / 2: allele
-                      for x, allele in enumerate(alleles)}
+            # PL values are ordered according to following:
+            idx_allele = {(x**2 + 3 * x) / 2: allele
+                          for x, allele in enumerate(alleles)}
 
-        # Extract PL values and order to find most-likely base:
-        pl_index = row['FORMAT'].split(':').index('PL')
-        pls = row['DATA'].split(':')[pl_index].split(',')
+            # Extract PL values and order to find most-likely base:
+            pl_index = row['FORMAT'].split(':').index('PL')
+            pls = row['DATA'].split(':')[pl_index].split(',')
 
-        allele_pls = [[allele, int(pls[idx])]
-                      for idx, allele in idx_allele.iteritems()]
-        allele_pls.sort(key=lambda x: x[1])
+            allele_pls = [[allele, int(pls[idx])]
+                          for idx, allele in idx_allele.iteritems()]
+            allele_pls.sort(key=lambda x: x[1])
 
-        # Compare most-likely base to reference:
-        if row['REF'] != allele_pls[0][0]:
-            mismatches.append(row['REF'] + row['POS'] + allele_pls[0][0])
-        else:
-            matches += 1
+            # Compare most-likely base to reference:
+            if row['REF'] != allele_pls[0][0]:
+                mutations.append(row['REF'] + str(pos) + allele_pls[0][0])
+            else:
+                num_matches += 1
+        except KeyError:
+            deletions.append(pos)
 
-    return matches, mismatches
+    return num_matches, mutations, deletions
 
 
 def reject_indels(sam_filename, templ_seq, out_filename=None):
@@ -238,7 +243,10 @@ def _vcf_to_df(vcf_filename):
             else:
                 data.append(line.split())
 
-    return pd.DataFrame(columns=columns, data=data)
+    df = pd.DataFrame(columns=columns, data=data)
+    df[['POS']] = df[['POS']].apply(pd.to_numeric)
+    df.set_index('POS', inplace=True)
+    return df
 
 
 def _replace_indels(sam_filename, templ_seq):
@@ -255,3 +263,7 @@ def _replace_indels(sam_filename, templ_seq):
 
         if seq:
             yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
+
+
+# analyse_vcf(
+#    '../results/194b82b1-e81d-4780-964a-21902a24eaab/GGTAGGCGAACACTGAGTCCAACT_3956.bam.vcf')
