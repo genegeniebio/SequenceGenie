@@ -18,6 +18,7 @@ from fuzzywuzzy import fuzz
 from pysam import Samfile
 from synbiochem.utils import io_utils, thread_utils
 
+import numpy as np
 import pandas as pd
 
 
@@ -148,21 +149,17 @@ def analyse_vcf(vcf_filename):
             row = df.loc[pos]
             alleles = [row['REF']] + row['ALT'].split(',')
 
-            # PL values are ordered according to following:
-            idx_allele = {(x**2 + 3 * x) / 2: allele
-                          for x, allele in enumerate(alleles)}
-
-            # Extract PL values and order to find most-likely base:
-            pl_index = row['FORMAT'].split(':').index('PL')
-            pls = row['DATA'].split(':')[pl_index].split(',')
-
-            allele_pls = [[allele, int(pls[idx])]
-                          for idx, allele in idx_allele.iteritems()]
-            allele_pls.sort(key=lambda x: x[1])
+            # Extract QS values and order to find most-likely base:
+            qs = [float(val)
+                  for val in dict([term.split('=')
+                                   for term in row['INFO'].split(';')])
+                  ['QS'].split(',')]
 
             # Compare most-likely base to reference:
-            if row['REF'] != allele_pls[0][0]:
-                mutations.append(row['REF'] + str(pos) + allele_pls[0][0])
+            hi_prob_base = alleles[np.argmax(qs)]
+
+            if row['REF'] != hi_prob_base:
+                mutations.append(row['REF'] + str(pos) + hi_prob_base)
             else:
                 num_matches += 1
         except KeyError:
@@ -266,4 +263,4 @@ def _replace_indels(sam_filename, templ_seq):
 
 
 # analyse_vcf(
-#    '../results/194b82b1-e81d-4780-964a-21902a24eaab/GGTAGGCGAACACTGAGTCCAACT_3956.bam.vcf')
+#    '../results/194b82b1-e81d-4780-964a-21902a24eaab/TATGTCTGACGCCTGGGTTGTGCC_3962.bam.vcf')
