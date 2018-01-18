@@ -148,6 +148,7 @@ def _score_alignment(dir_name, barcode, reads_filename, ice_files,
 
         identity_df.to_csv(os.path.join(dir_name, 'identity.csv'))
         mutations_df.to_csv(os.path.join(dir_name, 'mutations.csv'))
+        deletions_df.to_csv(os.path.join(dir_name, 'deletions.csv'))
 
 
 def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
