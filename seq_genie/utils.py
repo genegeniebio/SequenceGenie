@@ -9,6 +9,7 @@ All rights reserved.
 # pylint: disable=no-name-in-module
 # pylint: disable=too-many-arguments
 from collections import defaultdict
+import itertools
 import os
 from os.path import splitext
 import subprocess
@@ -165,7 +166,7 @@ def analyse_vcf(vcf_filename):
         except KeyError:
             deletions.append(pos)
 
-    return num_matches, mutations, deletions
+    return num_matches, mutations, _get_ranges_str(deletions)
 
 
 def reject_indels(sam_filename, templ_seq, out_filename=None):
@@ -261,6 +262,24 @@ def _replace_indels(sam_filename, templ_seq):
         if seq:
             yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
 
+
+def _get_ranges_str(vals):
+    '''Convert list of integers to range strings.'''
+    return ['-'.join([str(r) for r in rnge])
+            if rnge[0] != rnge[1]
+            else rnge[0]
+            for rnge in _get_ranges(vals)]
+
+
+def _get_ranges(vals):
+    '''Convert list of integer to ranges.'''
+    ranges = []
+
+    for _, b in itertools.groupby(enumerate(vals), lambda (x, y): y - x):
+        b = list(b)
+        ranges.append((b[0][1], b[-1][1]))
+
+    return ranges
 
 # analyse_vcf(
 #    '../results/194b82b1-e81d-4780-964a-21902a24eaab/TATGTCTGACGCCTGGGTTGTGCC_3962.bam.vcf')
