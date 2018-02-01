@@ -1,5 +1,5 @@
 '''
-SequenceGenie (c) GeneGenie Bioinformatics Ltd. 2017
+SequenceGenie (c) University of Manchester 2018
 
 All rights reserved.
 
