@@ -95,7 +95,7 @@ class PathwayAligner(object):
             self.__mutations_df.lookup(self.__mutations_df.index,
                                        self.__summary_df['ice_id'])
         self.__summary_df['deletions'] = \
-            self.__mutations_df.lookup(self.__deletions_df.index,
+            self.__deletions_df.lookup(self.__deletions_df.index,
                                        self.__summary_df['ice_id'])
 
         # Remove spurious unidentified entries:
