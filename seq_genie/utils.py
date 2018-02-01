@@ -213,12 +213,16 @@ def _get_reads(filename, min_length, reads):
 def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
              barcode_seqs):
     '''Bin an individual sequence.'''
-    trim_seq = str(seq.seq[:max_barcode_len + search_len])
+    trim_seq_for = str(seq.seq[:max_barcode_len + search_len])
+    trim_seq_rev = \
+        str(seq.seq[-(max_barcode_len + search_len):].reverse_complement())
+
     max_score = score_threshold
     selected_barcode = None
 
     for barcode in barcodes:
-        score = fuzz.partial_ratio(barcode, trim_seq)
+        score = max(fuzz.partial_ratio(barcode, trim_seq_for),
+                    fuzz.partial_ratio(barcode, trim_seq_rev))
 
         if score > max_score:
             selected_barcode = barcode
