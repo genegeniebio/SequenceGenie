@@ -144,7 +144,7 @@ def pcr(seq, forward_primer, reverse_primer):
     return seq, for_primer_pos
 
 
-def analyse_vcf(vcf_filename):
+def analyse_vcf(vcf_filename, dp_filter):
     '''Analyse vcf file, returning number of matches, mutations and indels.'''
     num_matches = 0
     mutations = []
@@ -153,31 +153,26 @@ def analyse_vcf(vcf_filename):
     df = _vcf_to_df(vcf_filename)
 
     for row in df.itertuples():
-        try:
-            info = [term.split('=') for term in row.INFO.split(';')]
+        if row.INDEL:
+            mutations.append(row.REF + str(row.POS) + row.ALT)
+        elif (dp_filter > 1 and row.DP > dp_filter) or row.DP_PROP > dp_filter:
+            alleles = [row.REF] + row.ALT.split(',')
 
-            info = {term[0]: (term[1] if len(term) == 2 else None)
-                    for term in info}
+            # Extract QS values and order to find most-likely base:
+            qs = [float(val)
+                  for val in dict([term.split('=')
+                                   for term in row.INFO.split(';')])
+                  ['QS'].split(',')]
 
-            if 'INDEL' in info:
-                mutations.append(row.REF + row.POS + row.ALT)
+            # Compare most-likely base to reference:
+            hi_prob_base = alleles[np.argmax(qs)]
+
+            if row.REF != hi_prob_base:
+                mutations.append(row.REF + str(row.POS) + hi_prob_base +
+                                 ' ' + str(max(qs)))
             else:
-                alleles = [row.REF] + row.ALT.split(',')
-
-                # Extract QS values and order to find most-likely base:
-                qs = [float(val)
-                      for val in dict([term.split('=')
-                                       for term in row.INFO.split(';')])
-                      ['QS'].split(',')]
-
-                # Compare most-likely base to reference:
-                hi_prob_base = alleles[np.argmax(qs)]
-
-                if row.REF != hi_prob_base:
-                    mutations.append(row.REF + row.POS + hi_prob_base)
-                else:
-                    num_matches += 1
-        except KeyError:
+                num_matches += 1
+        else:
             deletions.append(row.POS)
 
     return num_matches, mutations, _get_ranges_str(deletions)
@@ -259,10 +254,29 @@ def _vcf_to_df(vcf_filename):
             else:
                 data.append(line.split())
 
-    df = pd.DataFrame(columns=columns, data=data)
-    # df[['POS']] = df[['POS']].apply(pd.to_numeric)
-    # df.set_index('POS', inplace=True)
+    df = _expand_info(pd.DataFrame(columns=columns, data=data))
+
+    df['POS'] = df['POS'].astype(int)
+    df['DP'] = df['DP'].astype(int)
+    df['DP_PROP'] = df['DP'] / df['DP'].max()
+
+    if 'INDEL' in df.columns:
+        df[['INDEL']] = df[['INDEL']].fillna(value=False)
+
     return df
+
+
+def _expand_info(df):
+    '''Expand out INFO column from vcf file.'''
+    infos = []
+
+    for row in df.itertuples():
+        info = [term.split('=') for term in row.INFO.split(';')]
+
+        infos.append({term[0]: (term[1] if len(term) == 2 else True)
+                      for term in info})
+
+    return df.join(pd.DataFrame(infos, index=df.index))
 
 
 def _replace_indels(sam_filename, templ_seq):

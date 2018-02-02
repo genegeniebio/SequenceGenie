@@ -31,7 +31,7 @@ class PathwayAligner(object):
     def __init__(self, out_dir,
                  barcodes_filename, reads_filename, ice_ids_filename,
                  ice_url, ice_username, ice_password,
-                 for_primer, rev_primer, dp_filter=100):
+                 for_primer, rev_primer, dp_filter=0.5):
 
         # Initialise project directory:
         self.__dir_name = os.path.join(out_dir, str(uuid.uuid4()))
@@ -182,7 +182,8 @@ def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
     num_matches, mutations, deletions = \
         utils.analyse_vcf(utils.get_vcf(bam_filename,
                                         templ_pcr_filename,
-                                        pcr_offset))
+                                        pcr_offset),
+                          dp_filter)
 
     identity_df[ice_id][barcode] = num_matches / float(templ_len)
     mutations_df[ice_id][barcode] = mutations
