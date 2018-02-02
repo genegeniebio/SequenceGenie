@@ -13,10 +13,11 @@ import itertools
 import os
 from os.path import splitext
 import subprocess
+import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
 from fuzzywuzzy import fuzz
-from pysam import Samfile
+from pysam import Samfile, VariantFile
 from synbiochem.utils import io_utils, thread_utils
 
 import numpy as np
@@ -79,27 +80,33 @@ def mem(templ_filename, reads_filename, out_filename=None,
     return out_file
 
 
-def get_vcf(bam_filename, templ_filename, dp_filter):
+def get_vcf(bam_filename, templ_filename, pcr_offset=0):
     '''Generates a vcf file.'''
-    vcf_filename = bam_filename + '.vcf'
+    vcf_filename = \
+        tempfile.NamedTemporaryFile('w', suffix='.vcf', delete=False).name \
+        if pcr_offset else bam_filename + '.vcf'
 
-    proc1 = subprocess.Popen(['samtools',
-                              'mpileup',
-                              '-uvf',
-                              templ_filename,
-                              '-t', 'DP',
-                              bam_filename],
-                             stdout=subprocess.PIPE)
+    prc = subprocess.Popen(['samtools',
+                            'mpileup',
+                            '-uvf',
+                            templ_filename,
+                            '-t', 'DP',
+                            '-o', vcf_filename,
+                            bam_filename])
 
-    subprocess.call(['bcftools',
-                     'filter',
-                     '-i', 'FMT/DP>' + str(dp_filter),
-                     '-o', vcf_filename],
-                    stdin=proc1.stdout)
+    prc.communicate()
 
-    proc1.stdout.close()
+    if pcr_offset:
+        vcf_in = VariantFile(vcf_filename)
+        vcf_out = VariantFile(bam_filename + '.vcf', 'w', header=vcf_in.header)
 
-    return vcf_filename
+        for rec in vcf_in.fetch():
+            rec.pos = rec.pos + pcr_offset
+            vcf_out.write(rec)
+
+        vcf_out.close()
+
+    return bam_filename + '.vcf'
 
 
 def sort(in_filename, out_filename):
@@ -134,7 +141,7 @@ def pcr(seq, forward_primer, reverse_primer):
     elif rev_primer_pos > -1:
         seq = seq[:rev_primer_pos + len(reverse_primer)]
 
-    return seq
+    return seq, for_primer_pos
 
 
 def analyse_vcf(vcf_filename):
@@ -145,26 +152,33 @@ def analyse_vcf(vcf_filename):
 
     df = _vcf_to_df(vcf_filename)
 
-    for pos in range(1, df.index[-1] + 1):
+    for row in df.itertuples():
         try:
-            row = df.loc[pos]
-            alleles = [row['REF']] + row['ALT'].split(',')
+            info = [term.split('=') for term in row.INFO.split(';')]
 
-            # Extract QS values and order to find most-likely base:
-            qs = [float(val)
-                  for val in dict([term.split('=')
-                                   for term in row['INFO'].split(';')])
-                  ['QS'].split(',')]
+            info = {term[0]: (term[1] if len(term) == 2 else None)
+                    for term in info}
 
-            # Compare most-likely base to reference:
-            hi_prob_base = alleles[np.argmax(qs)]
-
-            if row['REF'] != hi_prob_base:
-                mutations.append(row['REF'] + str(pos) + hi_prob_base)
+            if 'INDEL' in info:
+                mutations.append(row.REF + row.POS + row.ALT)
             else:
-                num_matches += 1
+                alleles = [row.REF] + row.ALT.split(',')
+
+                # Extract QS values and order to find most-likely base:
+                qs = [float(val)
+                      for val in dict([term.split('=')
+                                       for term in row.INFO.split(';')])
+                      ['QS'].split(',')]
+
+                # Compare most-likely base to reference:
+                hi_prob_base = alleles[np.argmax(qs)]
+
+                if row.REF != hi_prob_base:
+                    mutations.append(row.REF + row.POS + hi_prob_base)
+                else:
+                    num_matches += 1
         except KeyError:
-            deletions.append(pos)
+            deletions.append(row.POS)
 
     return num_matches, mutations, _get_ranges_str(deletions)
 
@@ -246,8 +260,8 @@ def _vcf_to_df(vcf_filename):
                 data.append(line.split())
 
     df = pd.DataFrame(columns=columns, data=data)
-    df[['POS']] = df[['POS']].apply(pd.to_numeric)
-    df.set_index('POS', inplace=True)
+    # df[['POS']] = df[['POS']].apply(pd.to_numeric)
+    # df.set_index('POS', inplace=True)
     return df
 
 
@@ -284,6 +298,3 @@ def _get_ranges(vals):
         ranges.append((b[0][1], b[-1][1]))
 
     return ranges
-
-# analyse_vcf(
-#    '../results/194b82b1-e81d-4780-964a-21902a24eaab/TATGTCTGACGCCTGGGTTGTGCC_3962.bam.vcf')

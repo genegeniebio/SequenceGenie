@@ -10,6 +10,7 @@ All rights reserved.
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-locals
 from __future__ import division
 
 import os
@@ -37,10 +38,11 @@ class PathwayAligner(object):
         os.makedirs(self.__dir_name)
 
         # Get pathway sequences from ICE:
-        self.__ice_files = _get_ice_files(ice_url, ice_username, ice_password,
-                                          ice_ids_filename,
-                                          for_primer, rev_primer,
-                                          self.__dir_name)
+        self.__ice_files, self.__pcr_offsets = \
+            _get_ice_files(ice_url, ice_username, ice_password,
+                           ice_ids_filename,
+                           for_primer, rev_primer,
+                           self.__dir_name)
 
         # Demultiplex barcoded reads:
         reads = utils.get_reads(reads_filename)
@@ -80,6 +82,7 @@ class PathwayAligner(object):
                                  barcode,
                                  reads_filename,
                                  self.__ice_files,
+                                 self.__pcr_offsets,
                                  self.__identity_df,
                                  self.__mutations_df,
                                  self.__deletions_df,
@@ -117,15 +120,22 @@ def _get_ice_files(url, username, password, ice_ids_filename,
     with open(ice_ids_filename, 'rU') as ice_ids_file:
         ice_ids = [line.strip() for line in ice_ids_file]
 
-    seqs = [utils.pcr(ice_client.get_ice_entry(ice_id).get_seq(),
-                      for_primer, rev_primer)
-            for ice_id in ice_ids]
+    seqs_offsets = [utils.pcr(ice_client.get_ice_entry(ice_id).get_seq(),
+                              for_primer, rev_primer)
+                    for ice_id in ice_ids]
 
-    return {ice_id:
-            (seq_utils.write_fasta({ice_id: seq},
-                                   os.path.join(dir_name, ice_id + '.fasta')),
-             len(seq))
-            for ice_id, seq in zip(ice_ids, seqs)}
+    seqs, offsets = zip(*seqs_offsets)
+
+    ice_files = {ice_id:
+                 (seq_utils.write_fasta({ice_id: seq},
+                                        os.path.join(dir_name,
+                                                     ice_id + '.fasta')),
+                  len(seq))
+                 for ice_id, seq in zip(ice_ids, seqs)}
+
+    pcr_offsets = {ice_id: offset for ice_id, offset in zip(ice_ids, offsets)}
+
+    return ice_files, pcr_offsets
 
 
 def _get_barcode_ice(barcode_ice_filename):
@@ -137,12 +147,13 @@ def _get_barcode_ice(barcode_ice_filename):
     return barcode_ice.set_index('barcode')['ice_id'].to_dict()
 
 
-def _score_alignment(dir_name, barcode, reads_filename, ice_files,
+def _score_alignment(dir_name, barcode, reads_filename,
+                     ice_files, pcr_offsets,
                      identity_df, mutations_df, deletions_df, dp_filter):
     '''Score an alignment.'''
     for ice_id, (templ_filename, templ_len) in ice_files.iteritems():
         _score_barcode_ice(templ_filename, templ_len, dir_name, barcode,
-                           ice_id, reads_filename,
+                           ice_id, pcr_offsets[ice_id], reads_filename,
                            identity_df, mutations_df, deletions_df,
                            dp_filter)
 
@@ -152,7 +163,7 @@ def _score_alignment(dir_name, barcode, reads_filename, ice_files,
 
 
 def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
-                       ice_id, reads_filename,
+                       ice_id, pcr_offset, reads_filename,
                        identity_df, mutations_df, deletions_df,
                        dp_filter):
     '''Score barcode ice pair.'''
@@ -171,7 +182,7 @@ def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
     num_matches, mutations, deletions = \
         utils.analyse_vcf(utils.get_vcf(bam_filename,
                                         templ_pcr_filename,
-                                        dp_filter))
+                                        pcr_offset))
 
     identity_df[ice_id][barcode] = num_matches / float(templ_len)
     mutations_df[ice_id][barcode] = mutations

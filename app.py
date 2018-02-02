@@ -6,6 +6,7 @@ All rights reserved.
 @author: neilswainston
 '''
 import sys
+
 import seq_genie
 
 
