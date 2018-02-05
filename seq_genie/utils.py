@@ -243,7 +243,7 @@ def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
 
         if scores_rev[0] > max_scores[0] and scores_rev[1] > max_scores[1]:
             selected_barcodes = pair
-            max_scores = scores_forw
+            max_scores = scores_rev
 
     if selected_barcodes:
         barcode_seqs[selected_barcodes].append(seq)
@@ -265,8 +265,10 @@ def _vcf_to_df(vcf_filename):
     df = _expand_info(pd.DataFrame(columns=columns, data=data))
 
     df['POS'] = df['POS'].astype(int)
-    df['DP'] = df['DP'].astype(int)
-    df['DP_PROP'] = df['DP'] / df['DP'].max()
+
+    if 'DP' in df.columns:
+        df['DP'] = df['DP'].astype(int)
+        df['DP_PROP'] = df['DP'] / df['DP'].max()
 
     if 'INDEL' in df.columns:
         df[['INDEL']] = df[['INDEL']].fillna(value=False)

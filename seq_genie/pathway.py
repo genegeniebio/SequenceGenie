@@ -47,6 +47,7 @@ class PathwayAligner(object):
         # Demultiplex barcoded reads:
         reads = utils.get_reads(reads_filename)
         self.__summary_df = pd.read_csv(barcodes_filename)
+        self.__summary_df.dropna(inplace=True)
 
         barcode_cols = ['forward', 'reverse']
         barcodes = [tuple(pair)
