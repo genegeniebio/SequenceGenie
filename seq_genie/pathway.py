@@ -47,10 +47,15 @@ class PathwayAligner(object):
         # Demultiplex barcoded reads:
         reads = utils.get_reads(reads_filename)
         self.__summary_df = pd.read_csv(barcodes_filename)
-        self.__barcode_reads = utils.bin_seqs(
-            self.__summary_df['barcode'].tolist(), reads)
 
-        self.__summary_df.set_index('barcode', inplace=True)
+        barcode_cols = ['forward', 'reverse']
+        barcodes = [tuple(pair)
+                    for pair in
+                    self.__summary_df[barcode_cols].values.tolist()]
+
+        self.__barcode_reads = utils.bin_seqs(barcodes, reads)
+
+        self.__summary_df.set_index(barcode_cols, inplace=True)
 
         # Initialise dataframes:
         columns = sorted(self.__ice_files.keys())
@@ -73,13 +78,14 @@ class PathwayAligner(object):
 
         thread_pool = thread_utils.ThreadPool(num_threads)
 
-        for barcode, reads in self.__barcode_reads.iteritems():
-            reads_filename = os.path.join(self.__dir_name, barcode + '.fasta')
+        for barcodes, reads in self.__barcode_reads.iteritems():
+            reads_filename = os.path.join(self.__dir_name,
+                                          '_'.join(barcodes) + '.fasta')
             SeqIO.write(reads, reads_filename, 'fasta')
 
             thread_pool.add_task(_score_alignment,
                                  self.__dir_name,
-                                 barcode,
+                                 barcodes,
                                  reads_filename,
                                  self.__ice_files,
                                  self.__pcr_offsets,
@@ -147,28 +153,29 @@ def _get_barcode_ice(barcode_ice_filename):
     return barcode_ice.set_index('barcode')['ice_id'].to_dict()
 
 
-def _score_alignment(dir_name, barcode, reads_filename,
+def _score_alignment(dir_name, barcodes, reads_filename,
                      ice_files, pcr_offsets,
                      identity_df, mutations_df, deletions_df, dp_filter):
     '''Score an alignment.'''
     for ice_id, (templ_filename, templ_len) in ice_files.iteritems():
-        _score_barcode_ice(templ_filename, templ_len, dir_name, barcode,
-                           ice_id, pcr_offsets[ice_id], reads_filename,
-                           identity_df, mutations_df, deletions_df,
-                           dp_filter)
+        _score_barcodes_ice(templ_filename, templ_len, dir_name, barcodes,
+                            ice_id, pcr_offsets[ice_id], reads_filename,
+                            identity_df, mutations_df, deletions_df,
+                            dp_filter)
 
         identity_df.to_csv(os.path.join(dir_name, 'identity.csv'))
         mutations_df.to_csv(os.path.join(dir_name, 'mutations.csv'))
         deletions_df.to_csv(os.path.join(dir_name, 'deletions.csv'))
 
 
-def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
-                       ice_id, pcr_offset, reads_filename,
-                       identity_df, mutations_df, deletions_df,
-                       dp_filter):
-    '''Score barcode ice pair.'''
-    sam_filename = os.path.join(dir_name, barcode + '_' + ice_id + '.sam')
-    bam_filename = os.path.join(dir_name, barcode + '_' + ice_id + '.bam')
+def _score_barcodes_ice(templ_pcr_filename, templ_len, dir_name, barcodes,
+                        ice_id, pcr_offset, reads_filename,
+                        identity_df, mutations_df, deletions_df,
+                        dp_filter):
+    '''Score barcodes ice pair.'''
+    barcode_ice = '_'.join(list(barcodes) + [ice_id])
+    sam_filename = os.path.join(dir_name, barcode_ice + '.sam')
+    bam_filename = os.path.join(dir_name, barcode_ice + '.bam')
 
     # Align:
     utils.mem(templ_pcr_filename, reads_filename, sam_filename)
@@ -185,9 +192,9 @@ def _score_barcode_ice(templ_pcr_filename, templ_len, dir_name, barcode,
                                         pcr_offset),
                           dp_filter)
 
-    identity_df[ice_id][barcode] = num_matches / float(templ_len)
-    mutations_df[ice_id][barcode] = mutations
-    deletions_df[ice_id][barcode] = deletions
+    identity_df[ice_id][barcodes] = num_matches / float(templ_len)
+    mutations_df[ice_id][barcodes] = mutations
+    deletions_df[ice_id][barcodes] = deletions
 
 
 def main(args):

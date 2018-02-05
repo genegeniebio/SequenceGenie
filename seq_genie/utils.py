@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
-from fuzzywuzzy import fuzz
+from fuzzywuzzy.fuzz import partial_ratio
 from pysam import Samfile, VariantFile
 from synbiochem.utils import io_utils, thread_utils
 
@@ -44,7 +44,9 @@ def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
-    max_barcode_len = max([len(barcode) for barcode in barcodes])
+    max_barcode_len = max([len(barcode)
+                           for pair in barcodes
+                           for barcode in pair])
 
     if barcodes:
         thread_pool = thread_utils.ThreadPool(num_threads)
@@ -222,23 +224,29 @@ def _get_reads(filename, min_length, reads):
 def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
              barcode_seqs):
     '''Bin an individual sequence.'''
-    trim_seq_for = str(seq.seq[:max_barcode_len + search_len])
-    trim_seq_rev = \
-        str(seq.seq[-(max_barcode_len + search_len):].reverse_complement())
+    trim_seq_start = seq.seq[:max_barcode_len + search_len]
+    trim_seq_end = seq.seq[-(max_barcode_len + search_len):]
 
-    max_score = score_threshold
-    selected_barcode = None
+    max_scores = score_threshold, score_threshold
+    selected_barcodes = None
 
-    for barcode in barcodes:
-        score = max(fuzz.partial_ratio(barcode, trim_seq_for),
-                    fuzz.partial_ratio(barcode, trim_seq_rev))
+    for pair in barcodes:
+        scores_forw = partial_ratio(pair[0], trim_seq_start), \
+            partial_ratio(pair[1], trim_seq_end.reverse_complement())
 
-        if score > max_score:
-            selected_barcode = barcode
-            max_score = score
+        scores_rev = partial_ratio(pair[1], trim_seq_start), \
+            partial_ratio(pair[0], trim_seq_end.reverse_complement())
 
-    if selected_barcode:
-        barcode_seqs[selected_barcode].append(seq)
+        if scores_forw[0] > max_scores[0] and scores_forw[1] > max_scores[1]:
+            selected_barcodes = pair
+            max_scores = scores_forw
+
+        if scores_rev[0] > max_scores[0] and scores_rev[1] > max_scores[1]:
+            selected_barcodes = pair
+            max_scores = scores_forw
+
+    if selected_barcodes:
+        barcode_seqs[selected_barcodes].append(seq)
 
 
 def _vcf_to_df(vcf_filename):
