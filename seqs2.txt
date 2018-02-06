@@ -1,0 +1,9 @@
+../results
+"/Users/neilswainston/Desktop/180130DOE10 ONT/barcodes.csv"
+"/Users/neilswainston/Desktop/180130DOE10 ONT/"
+"/Users/neilswainston/Desktop/180130DOE10 ONT/ice_ids.txt"
+https://ice.synbiochem.co.uk
+neil.swainston@manchester.ac.uk
+P@ris030416
+gaattcaaaagatcttttaagaagg
+ttactcgagtttggatcc
