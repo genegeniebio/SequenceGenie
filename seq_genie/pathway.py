@@ -31,7 +31,7 @@ class PathwayAligner(object):
     def __init__(self, out_dir,
                  barcodes_filename, reads_filename, ice_ids_filename,
                  ice_url, ice_username, ice_password,
-                 for_primer, rev_primer, dp_filter=0.5):
+                 for_primer, rev_primer, dp_filter=0.25):
 
         # Initialise project directory:
         self.__dir_name = os.path.join(out_dir, str(uuid.uuid4()))
