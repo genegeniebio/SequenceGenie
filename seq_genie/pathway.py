@@ -67,6 +67,9 @@ class PathwayAligner(object):
         self.__mutations_df = pd.DataFrame(columns=columns,
                                            index=self.__summary_df.index)
 
+        self.__indels_df = pd.DataFrame(columns=columns,
+                                        index=self.__summary_df.index)
+
         self.__deletions_df = pd.DataFrame(columns=columns,
                                            index=self.__summary_df.index)
 
@@ -92,6 +95,7 @@ class PathwayAligner(object):
                                  self.__pcr_offsets,
                                  self.__identity_df,
                                  self.__mutations_df,
+                                 self.__indels_df,
                                  self.__deletions_df,
                                  self.__dp_filter)
 
@@ -104,6 +108,9 @@ class PathwayAligner(object):
         self.__summary_df['mutations'] = \
             self.__mutations_df.lookup(self.__mutations_df.index,
                                        self.__summary_df['ice_id'])
+        self.__summary_df['indels'] = \
+            self.__indels_df.lookup(self.__indels_df.index,
+                                    self.__summary_df['ice_id'])
         self.__summary_df['deletions'] = \
             self.__deletions_df.lookup(self.__deletions_df.index,
                                        self.__summary_df['ice_id'])
@@ -116,7 +123,8 @@ class PathwayAligner(object):
 
     def get_results(self):
         '''Get results.'''
-        return self.__summary_df, self.__identity_df, self.__mutations_df
+        return self.__summary_df, self.__identity_df, self.__mutations_df, \
+            self.__indels_df, self.__deletions_df
 
 
 def _get_ice_files(url, username, password, ice_ids_filename,
@@ -156,22 +164,24 @@ def _get_barcode_ice(barcode_ice_filename):
 
 def _score_alignment(dir_name, barcodes, reads_filename,
                      ice_files, pcr_offsets,
-                     identity_df, mutations_df, deletions_df, dp_filter):
+                     identity_df, mutations_df, indels_df, deletions_df,
+                     dp_filter):
     '''Score an alignment.'''
     for ice_id, (templ_filename, templ_len) in ice_files.iteritems():
         _score_barcodes_ice(templ_filename, templ_len, dir_name, barcodes,
                             ice_id, pcr_offsets[ice_id], reads_filename,
-                            identity_df, mutations_df, deletions_df,
+                            identity_df, mutations_df, indels_df, deletions_df,
                             dp_filter)
 
         identity_df.to_csv(os.path.join(dir_name, 'identity.csv'))
         mutations_df.to_csv(os.path.join(dir_name, 'mutations.csv'))
+        indels_df.to_csv(os.path.join(dir_name, 'indels.csv'))
         deletions_df.to_csv(os.path.join(dir_name, 'deletions.csv'))
 
 
 def _score_barcodes_ice(templ_pcr_filename, templ_len, dir_name, barcodes,
                         ice_id, pcr_offset, reads_filename,
-                        identity_df, mutations_df, deletions_df,
+                        identity_df, mutations_df, indels_df, deletions_df,
                         dp_filter):
     '''Score barcodes ice pair.'''
     barcode_ice = '_'.join(list(barcodes) + [ice_id])
@@ -187,7 +197,7 @@ def _score_barcodes_ice(templ_pcr_filename, templ_len, dir_name, barcodes,
     os.remove(sam_filename)
 
     # Generate and analyse variants file:
-    num_matches, mutations, deletions = \
+    num_matches, mutations, indels, deletions = \
         utils.analyse_vcf(utils.get_vcf(bam_filename,
                                         templ_pcr_filename,
                                         pcr_offset),
@@ -195,6 +205,7 @@ def _score_barcodes_ice(templ_pcr_filename, templ_len, dir_name, barcodes,
 
     identity_df[ice_id][barcodes] = num_matches / float(templ_len)
     mutations_df[ice_id][barcodes] = mutations
+    indels_df[ice_id][barcodes] = indels
     deletions_df[ice_id][barcodes] = deletions
 
 

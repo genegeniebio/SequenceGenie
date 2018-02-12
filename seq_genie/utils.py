@@ -150,34 +150,36 @@ def analyse_vcf(vcf_filename, dp_filter):
     '''Analyse vcf file, returning number of matches, mutations and indels.'''
     num_matches = 0
     mutations = []
+    indels = []
     deletions = []
 
     df = _vcf_to_df(vcf_filename)
 
-    for row in df.itertuples():
-        if row.INDEL:
-            mutations.append(row.REF + str(row.POS) + row.ALT)
-        elif (dp_filter > 1 and row.DP > dp_filter) or row.DP_PROP > dp_filter:
-            alleles = [row.REF] + row.ALT.split(',')
+    for _, row in df.iterrows():
+        if 'INDEL' in row:
+            indels.append(row['REF'] + str(row['POS']) + row['ALT'])
+        elif (dp_filter > 1 and row['DP'] > dp_filter) \
+                or row['DP_PROP'] > dp_filter:
+            alleles = [row['REF']] + row['ALT'].split(',')
 
             # Extract QS values and order to find most-likely base:
             qs = [float(val)
                   for val in dict([term.split('=')
-                                   for term in row.INFO.split(';')])
+                                   for term in row['INFO'].split(';')])
                   ['QS'].split(',')]
 
             # Compare most-likely base to reference:
             hi_prob_base = alleles[np.argmax(qs)]
 
-            if row.REF != hi_prob_base:
-                mutations.append(row.REF + str(row.POS) + hi_prob_base +
+            if row['REF'] != hi_prob_base:
+                mutations.append(row['REF'] + str(row['POS']) + hi_prob_base +
                                  ' ' + str(max(qs)))
             else:
                 num_matches += 1
         else:
-            deletions.append(row.POS)
+            deletions.append(row['POS'])
 
-    return num_matches, mutations, _get_ranges_str(deletions)
+    return num_matches, mutations, indels, _get_ranges_str(deletions)
 
 
 def reject_indels(sam_filename, templ_seq, out_filename=None):
