@@ -40,7 +40,7 @@ def get_reads(reads_filename, min_length=0):
 
 
 def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
-             num_threads=8):
+             num_threads=0):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
@@ -49,13 +49,19 @@ def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
                            for barcode in pair])
 
     if barcodes:
-        thread_pool = thread_utils.ThreadPool(num_threads)
+        if num_threads:
+            thread_pool = thread_utils.ThreadPool(num_threads)
 
-        for seq in sequences:
-            thread_pool.add_task(_bin_seq, seq, max_barcode_len, search_len,
-                                 score_threshold, barcodes, barcode_seqs)
+            for seq in sequences:
+                thread_pool.add_task(_bin_seq, seq, max_barcode_len,
+                                     search_len, score_threshold, barcodes,
+                                     barcode_seqs)
 
-        thread_pool.wait_completion()
+            thread_pool.wait_completion()
+        else:
+            for seq in sequences:
+                _bin_seq(seq, max_barcode_len, search_len, score_threshold,
+                         barcodes, barcode_seqs)
     else:
         barcode_seqs['undefined'].extend(sequences)
 

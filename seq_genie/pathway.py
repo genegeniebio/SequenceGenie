@@ -75,20 +75,39 @@ class PathwayAligner(object):
 
         self.__dp_filter = dp_filter
 
-    def score_alignments(self, num_threads=8):
+    def score_alignments(self, num_threads=0):
         '''Score alignments.'''
         for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
 
-        thread_pool = thread_utils.ThreadPool(num_threads)
+        if num_threads:
+            thread_pool = thread_utils.ThreadPool(num_threads)
 
-        for barcodes, reads in self.__barcode_reads.iteritems():
-            reads_filename = os.path.join(self.__dir_name,
-                                          '_'.join(barcodes) + '.fasta')
-            SeqIO.write(reads, reads_filename, 'fasta')
+            for barcodes, reads in self.__barcode_reads.iteritems():
+                reads_filename = os.path.join(self.__dir_name,
+                                              '_'.join(barcodes) + '.fasta')
+                SeqIO.write(reads, reads_filename, 'fasta')
 
-            thread_pool.add_task(_score_alignment,
-                                 self.__dir_name,
+                thread_pool.add_task(_score_alignment,
+                                     self.__dir_name,
+                                     barcodes,
+                                     reads_filename,
+                                     self.__ice_files,
+                                     self.__pcr_offsets,
+                                     self.__identity_df,
+                                     self.__mutations_df,
+                                     self.__indels_df,
+                                     self.__deletions_df,
+                                     self.__dp_filter)
+
+            thread_pool.wait_completion()
+        else:
+            for barcodes, reads in self.__barcode_reads.iteritems():
+                reads_filename = os.path.join(self.__dir_name,
+                                              '_'.join(barcodes) + '.fasta')
+                SeqIO.write(reads, reads_filename, 'fasta')
+
+                _score_alignment(self.__dir_name,
                                  barcodes,
                                  reads_filename,
                                  self.__ice_files,
@@ -98,8 +117,6 @@ class PathwayAligner(object):
                                  self.__indels_df,
                                  self.__deletions_df,
                                  self.__dp_filter)
-
-        thread_pool.wait_completion()
 
         # Update summary:
         self.__identity_df.fillna(0, inplace=True)
