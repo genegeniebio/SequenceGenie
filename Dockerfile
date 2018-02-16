@@ -1,7 +1,15 @@
 FROM python:2.7
 
-COPY . /
-WORKDIR /
+ENV DIRPATH /SequenceGenie
+WORKDIR $DIRPATH
+COPY . .
+
+RUN pwd
+RUN ls -l  
+
+ENV PYTHONPATH="$DIRPATH:$PYTHONPATH"
+
+RUN echo $PYTHONPATH
 
 # Setup ARG variables:
 ARG SAMTOOLS_BIN="samtools-1.6.tar.bz2"

@@ -226,10 +226,15 @@ def _score_barcodes_ice(templ_pcr_filename, templ_len, dir_name, barcodes,
     deletions_df[ice_id][barcodes] = deletions
 
 
-def main(args):
-    '''main method.'''
+def score_alignments(args):
+    '''Score alignments.'''
     aligner = PathwayAligner(*args)
     aligner.score_alignments()
+
+
+def main(args):
+    '''main method.'''
+    score_alignments(args)
 
 
 if __name__ == '__main__':

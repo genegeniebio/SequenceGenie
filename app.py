@@ -7,13 +7,13 @@ All rights reserved.
 '''
 import sys
 
-import seq_genie
+from seq_genie import pathway
 
 
 def main(args):
     '''main method.'''
     if args[0] == 'pathway':
-        seq_genie.pathway.main(args[1:])
+        pathway.score_alignments(args[1:])
 
 
 if __name__ == '__main__':
