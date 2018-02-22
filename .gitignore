@@ -103,6 +103,6 @@ ENV/
 /.project
 /.pydevproject
 /**/.DS_Store
-/results
+/results/**/
 /data/**/*sam*
 /data/**/*ugenedb*
