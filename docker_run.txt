@@ -1,4 +1,4 @@
-docker run -v "/Users/neilswainston/Desktop/180130DOE10 ONT":/data -v /Users/neilswainston/git/SequenceGenie/results:/results sequencegenie \
+docker run -v "/Users/neilswainston/Desktop/180130DOE10 ONT/data/":/data -v "/Users/neilswainston/Desktop/180130DOE10 ONT/results/":/results sequencegenie \
 pathway \
 /results \
 "/data/barcodes.csv" \
