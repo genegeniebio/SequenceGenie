@@ -5,6 +5,7 @@ All rights reserved.
 
 @author: neilswainston
 '''
+# pylint: disable=no-member
 # pylint: disable=no-name-in-module
 import os
 import sys
