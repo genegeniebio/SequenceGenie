@@ -13,6 +13,7 @@ All rights reserved.
 # pylint: disable=too-many-locals
 from __future__ import division
 
+import multiprocessing
 import os
 import sys
 import uuid
@@ -45,16 +46,14 @@ class PathwayAligner(object):
                            self.__dir_name)
 
         # Demultiplex barcoded reads:
-        reads = utils.get_reads(reads_filename)
+        self.__reads = utils.get_reads(reads_filename)
         self.__summary_df = pd.read_csv(barcodes_filename)
         self.__summary_df.dropna(inplace=True)
 
         barcode_cols = ['forward', 'reverse']
-        barcodes = [tuple(pair)
-                    for pair in
-                    self.__summary_df[barcode_cols].values.tolist()]
-
-        self.__barcode_reads = utils.bin_seqs(barcodes, reads)
+        self.__barcodes = [tuple(pair)
+                           for pair in
+                           self.__summary_df[barcode_cols].values.tolist()]
 
         self.__summary_df.set_index(barcode_cols, inplace=True)
 
@@ -80,10 +79,13 @@ class PathwayAligner(object):
         for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
 
+        barcode_reads = utils.bin_seqs(self.__barcodes, self.__reads,
+                                       num_threads=0)
+
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
 
-            for barcodes, reads in self.__barcode_reads.iteritems():
+            for barcodes, reads in barcode_reads.iteritems():
                 reads_filename = os.path.join(self.__dir_name,
                                               '_'.join(barcodes) + '.fasta')
                 SeqIO.write(reads, reads_filename, 'fasta')
@@ -102,7 +104,7 @@ class PathwayAligner(object):
 
             thread_pool.wait_completion()
         else:
-            for barcodes, reads in self.__barcode_reads.iteritems():
+            for barcodes, reads in barcode_reads.iteritems():
                 reads_filename = os.path.join(self.__dir_name,
                                               '_'.join(barcodes) + '.fasta')
                 SeqIO.write(reads, reads_filename, 'fasta')
@@ -226,15 +228,20 @@ def _score_barcodes_ice(templ_pcr_filename, templ_len, dir_name, barcodes,
     deletions_df[ice_id][barcodes] = deletions
 
 
-def score_alignments(args):
-    '''Score alignments.'''
-    aligner = PathwayAligner(*args)
-    aligner.score_alignments()
-
-
 def main(args):
     '''main method.'''
-    score_alignments(args)
+    try:
+        num_threads = int(args[-1])
+    except ValueError:
+        if args[-1] == 'True':
+            num_threads = multiprocessing.cpu_count()
+        else:
+            num_threads = 0
+
+    print 'Running pathway with %d threads' % num_threads
+
+    aligner = PathwayAligner(*args[:-1])
+    aligner.score_alignments(num_threads)
 
 
 if __name__ == '__main__':

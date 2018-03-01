@@ -1,4 +1,4 @@
-docker run -v "/Users/neilswainston/Desktop/180130DOE10 ONT/data/":/data -v "/Users/neilswainston/Desktop/180130DOE10 ONT/results/":/results sequencegenie \
+docker run -v "/mnt/pd0/180130DOE10 ONT/data/":/data -v "/mnt/pd0/180130DOE10 ONT/results/":/results sequencegenie \
 pathway \
 /results \
 "/data/barcodes.csv" \
@@ -8,4 +8,5 @@ https://ice.synbiochem.co.uk \
 neil.swainston@manchester.ac.uk \
 password \
 gaattcaaaagatcttttaagaag \
-ttactcgagtttggatcc
+ttactcgagtttggatcc \
+True
