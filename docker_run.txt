@@ -1,4 +1,4 @@
-docker run -v "/mnt/disks/pd0/180130DOE10 ONT/data/":/data -v "/mnt/disks/pd0/180130DOE10 ONT/results/":/results sequencegenie \
+docker run -d -v "/mnt/disks/pd0/180130DOE10 ONT/data/":/data -v "/mnt/disks/pd0/180130DOE10 ONT/results/":/results sequencegenie \
 pathway \
 /results \
 "/data/barcodes.csv" \
