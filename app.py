@@ -13,7 +13,7 @@ from seq_genie import pathway
 def main(args):
     '''main method.'''
     if args[0] == 'pathway':
-        pathway.score_alignments(args[1:])
+        pathway.main(args[1:])
 
 
 if __name__ == '__main__':
