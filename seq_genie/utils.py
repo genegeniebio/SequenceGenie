@@ -9,7 +9,6 @@ All rights reserved.
 # pylint: disable=no-name-in-module
 # pylint: disable=too-many-arguments
 from collections import defaultdict
-import itertools
 import os
 from os.path import splitext
 import subprocess
@@ -19,9 +18,6 @@ from Bio import Seq, SeqIO, SeqRecord
 from fuzzywuzzy.fuzz import partial_ratio
 from pysam import Samfile, VariantFile
 from synbiochem.utils import io_utils, thread_utils
-
-import numpy as np
-import pandas as pd
 
 
 def get_reads(reads_filename, min_length=0):
@@ -152,42 +148,6 @@ def pcr(seq, forward_primer, reverse_primer):
     return seq, for_primer_pos
 
 
-def analyse_vcf(vcf_filename, dp_filter):
-    '''Analyse vcf file, returning number of matches, mutations and indels.'''
-    num_matches = 0
-    mutations = []
-    indels = []
-    deletions = []
-
-    df = _vcf_to_df(vcf_filename)
-
-    for _, row in df.iterrows():
-        if 'INDEL' in row:
-            indels.append(row['REF'] + str(row['POS']) + row['ALT'])
-        elif (dp_filter > 1 and row['DP'] > dp_filter) \
-                or row['DP_PROP'] > dp_filter:
-            alleles = [row['REF']] + row['ALT'].split(',')
-
-            # Extract QS values and order to find most-likely base:
-            qs = [float(val)
-                  for val in dict([term.split('=')
-                                   for term in row['INFO'].split(';')])
-                  ['QS'].split(',')]
-
-            # Compare most-likely base to reference:
-            hi_prob_base = alleles[np.argmax(qs)]
-
-            if row['REF'] != hi_prob_base:
-                mutations.append(row['REF'] + str(row['POS']) + hi_prob_base +
-                                 ' ' + str(max(qs)))
-            else:
-                num_matches += 1
-        else:
-            deletions.append(row['POS'])
-
-    return num_matches, mutations, indels, _get_ranges_str(deletions)
-
-
 def reject_indels(sam_filename, templ_seq, out_filename=None):
     '''Rejects indels.'''
     out_filename = io_utils.get_filename(out_filename)
@@ -257,46 +217,6 @@ def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
         barcode_seqs[selected_barcodes].append(seq)
 
 
-def _vcf_to_df(vcf_filename):
-    '''Convert vcf to Pandas dataframe.'''
-    data = []
-
-    with open(vcf_filename) as vcf:
-        for line in vcf:
-            if line.startswith('##'):
-                pass
-            elif line.startswith('#'):
-                columns = line[1:].split()[:-1] + ['DATA']
-            else:
-                data.append(line.split())
-
-    df = _expand_info(pd.DataFrame(columns=columns, data=data))
-
-    df['POS'] = df['POS'].astype(int)
-
-    if 'DP' in df.columns:
-        df['DP'] = df['DP'].astype(int)
-        df['DP_PROP'] = df['DP'] / df['DP'].max()
-
-    if 'INDEL' in df.columns:
-        df[['INDEL']] = df[['INDEL']].fillna(value=False)
-
-    return df
-
-
-def _expand_info(df):
-    '''Expand out INFO column from vcf file.'''
-    infos = []
-
-    for row in df.itertuples():
-        info = [term.split('=') for term in row.INFO.split(';')]
-
-        infos.append({term[0]: (term[1] if len(term) == 2 else True)
-                      for term in info})
-
-    return df.join(pd.DataFrame(infos, index=df.index))
-
-
 def _replace_indels(sam_filename, templ_seq):
     '''Replace indels, replacing them with wildtype.'''
     sam_file = Samfile(sam_filename, 'r')
@@ -311,22 +231,3 @@ def _replace_indels(sam_filename, templ_seq):
 
         if seq:
             yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
-
-
-def _get_ranges_str(vals):
-    '''Convert list of integers to range strings.'''
-    return ['-'.join([str(r) for r in rnge])
-            if rnge[0] != rnge[1]
-            else rnge[0]
-            for rnge in _get_ranges(vals)]
-
-
-def _get_ranges(vals):
-    '''Convert list of integer to ranges.'''
-    ranges = []
-
-    for _, b in itertools.groupby(enumerate(vals), lambda (x, y): y - x):
-        b = list(b)
-        ranges.append((b[0][1], b[-1][1]))
-
-    return ranges

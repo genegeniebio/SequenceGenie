@@ -23,7 +23,7 @@ import pysam
 from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 import pandas as pd
-from seq_genie import utils
+from seq_genie import utils, vcf_utils
 
 
 class PathwayAligner(object):
@@ -47,30 +47,15 @@ class PathwayAligner(object):
 
         # Demultiplex barcoded reads:
         self.__reads = utils.get_reads(reads_filename)
-        self.__summary_df = pd.read_csv(barcodes_filename)
-        self.__summary_df.dropna(inplace=True)
 
-        barcode_cols = ['forward', 'reverse']
-        self.__barcodes = [tuple(pair)
-                           for pair in
-                           self.__summary_df[barcode_cols].values.tolist()]
-
-        self.__summary_df.set_index(barcode_cols, inplace=True)
-
-        # Initialise dataframes:
+        # Initialise vcf analyser:
         columns = sorted(self.__ice_files.keys())
-        self.__identity_df = pd.DataFrame(columns=columns,
-                                          index=self.__summary_df.index,
-                                          dtype='float')
 
-        self.__mutations_df = pd.DataFrame(columns=columns,
-                                           index=self.__summary_df.index)
+        self.__vcf_analyser = vcf_utils.VcfAnalyser(columns,
+                                                    barcodes_filename,
+                                                    self.__dir_name)
 
-        self.__indels_df = pd.DataFrame(columns=columns,
-                                        index=self.__summary_df.index)
-
-        self.__deletions_df = pd.DataFrame(columns=columns,
-                                           index=self.__summary_df.index)
+        self.__barcodes = self.__vcf_analyser.get_src_ids()
 
         self.__dp_filter = dp_filter
 
@@ -96,10 +81,7 @@ class PathwayAligner(object):
                                      reads_filename,
                                      self.__ice_files,
                                      self.__pcr_offsets,
-                                     self.__identity_df,
-                                     self.__mutations_df,
-                                     self.__indels_df,
-                                     self.__deletions_df,
+                                     self.__vcf_analyser,
                                      self.__dp_filter)
 
             thread_pool.wait_completion()
@@ -114,31 +96,11 @@ class PathwayAligner(object):
                                  reads_filename,
                                  self.__ice_files,
                                  self.__pcr_offsets,
-                                 self.__identity_df,
-                                 self.__mutations_df,
-                                 self.__indels_df,
-                                 self.__deletions_df,
+                                 self.__vcf_analyser,
                                  self.__dp_filter)
 
         # Update summary:
-        self.__identity_df.fillna(0, inplace=True)
-        self.__summary_df['ice_id'] = self.__identity_df.idxmax(axis=1)
-        self.__summary_df['identity'] = self.__identity_df.max(axis=1)
-        self.__summary_df['mutations'] = \
-            self.__mutations_df.lookup(self.__mutations_df.index,
-                                       self.__summary_df['ice_id'])
-        self.__summary_df['indels'] = \
-            self.__indels_df.lookup(self.__indels_df.index,
-                                    self.__summary_df['ice_id'])
-        self.__summary_df['deletions'] = \
-            self.__deletions_df.lookup(self.__deletions_df.index,
-                                       self.__summary_df['ice_id'])
-
-        # Remove spurious unidentified entries:
-        self.__summary_df = \
-            self.__summary_df[self.__summary_df['identity'] != 0]
-
-        self.__summary_df.to_csv(os.path.join(self.__dir_name, 'summary.csv'))
+        self.__vcf_analyser.write_summary()
 
     def get_results(self):
         '''Get results.'''
@@ -183,25 +145,17 @@ def _get_barcode_ice(barcode_ice_filename):
 
 def _score_alignment(dir_name, barcodes, reads_filename,
                      ice_files, pcr_offsets,
-                     identity_df, mutations_df, indels_df, deletions_df,
-                     dp_filter):
+                     vcf_analyser, dp_filter):
     '''Score an alignment.'''
-    for ice_id, (templ_filename, templ_len) in ice_files.iteritems():
-        _score_barcodes_ice(templ_filename, templ_len, dir_name, barcodes,
+    for ice_id, (templ_filename, _) in ice_files.iteritems():
+        _score_barcodes_ice(templ_filename, dir_name, barcodes,
                             ice_id, pcr_offsets[ice_id], reads_filename,
-                            identity_df, mutations_df, indels_df, deletions_df,
-                            dp_filter)
-
-        identity_df.to_csv(os.path.join(dir_name, 'identity.csv'))
-        mutations_df.to_csv(os.path.join(dir_name, 'mutations.csv'))
-        indels_df.to_csv(os.path.join(dir_name, 'indels.csv'))
-        deletions_df.to_csv(os.path.join(dir_name, 'deletions.csv'))
+                            vcf_analyser, dp_filter)
 
 
-def _score_barcodes_ice(templ_pcr_filename, templ_len, dir_name, barcodes,
+def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
                         ice_id, pcr_offset, reads_filename,
-                        identity_df, mutations_df, indels_df, deletions_df,
-                        dp_filter):
+                        vcf_analyser, dp_filter):
     '''Score barcodes ice pair.'''
     barcode_ice = '_'.join(list(barcodes) + [ice_id])
     sam_filename = os.path.join(dir_name, barcode_ice + '.sam')
@@ -216,16 +170,8 @@ def _score_barcodes_ice(templ_pcr_filename, templ_len, dir_name, barcodes,
     os.remove(sam_filename)
 
     # Generate and analyse variants file:
-    num_matches, mutations, indels, deletions = \
-        utils.analyse_vcf(utils.get_vcf(bam_filename,
-                                        templ_pcr_filename,
-                                        pcr_offset),
-                          dp_filter)
-
-    identity_df[ice_id][barcodes] = num_matches / float(templ_len)
-    mutations_df[ice_id][barcodes] = mutations
-    indels_df[ice_id][barcodes] = indels
-    deletions_df[ice_id][barcodes] = deletions
+    vcf_filename = utils.get_vcf(bam_filename, templ_pcr_filename, pcr_offset)
+    vcf_analyser.analyse(vcf_filename, ice_id, barcodes, dp_filter)
 
 
 def main(args):
