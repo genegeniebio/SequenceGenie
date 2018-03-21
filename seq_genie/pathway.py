@@ -65,7 +65,7 @@ class PathwayAligner(object):
             utils.index(templ_filename)
 
         barcode_reads = utils.bin_seqs(self.__barcodes, self.__reads,
-                                       num_threads=0)
+                                       num_threads)
 
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
