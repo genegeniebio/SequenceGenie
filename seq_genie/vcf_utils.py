@@ -10,6 +10,7 @@ All rights reserved.
 import itertools
 import os
 import re
+import sys
 
 import numpy as np
 import pandas as pd
@@ -53,11 +54,12 @@ class VcfAnalyser(object):
         num_matches, mutations, indels, deletions, templ_len = \
             analyse_vcf(vcf_filename, dp_filter)
 
-        self.__identity_df[target_id][src_id] = num_matches / \
-            float(templ_len)
-        self.__mutations_df[target_id][src_id] = mutations
-        self.__indels_df[target_id][src_id] = indels
-        self.__deletions_df[target_id][src_id] = deletions
+        _set_value(self.__identity_df, num_matches / float(templ_len),
+                   target_id, *src_id)
+
+        _set_value(self.__mutations_df, mutations, target_id, *src_id)
+        _set_value(self.__indels_df, indels, target_id, *src_id)
+        _set_value(self.__deletions_df, deletions, target_id, *src_id)
 
         self.write()
 
@@ -103,7 +105,7 @@ def analyse_vcf(vcf_filename, dp_filter):
     df, templ_len = _vcf_to_df(vcf_filename)
 
     for _, row in df.iterrows():
-        if 'INDEL' in row:
+        if 'INDEL' in row and row.INDEL:
             indels.append(row['REF'] + str(row['POS']) + row['ALT'])
         elif (dp_filter > 1 and row['DP'] > dp_filter) \
                 or row['DP_PROP'] > dp_filter:
@@ -193,3 +195,30 @@ def _get_ranges(vals):
         ranges.append((b[0][1], b[-1][1]))
 
     return ranges
+
+
+def _set_value(df, val, col_id, *row_ids):
+    '''Set a value in a Dataframe.'''
+    df[col_id].loc[row_ids[0], row_ids[1]] = val
+
+
+def main(args):
+    '''main method.'''
+    analyser = VcfAnalyser(args[4:], args[0], args[2])
+
+    dp_filter = float(args[3])
+
+    for dirpath, _, filenames in os.walk(os.path.abspath(args[1])):
+        for filename in filenames:
+            if filename[-4:] == '.vcf':
+                mtch = re.match(r'([^\.]*)_([^\.]*)\..*', filename)
+                analyser.analyse(os.path.join(dirpath, filename),
+                                 mtch.group(2),
+                                 mtch.group(1).split('_'),
+                                 dp_filter)
+
+    analyser.write_summary()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
