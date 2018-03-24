@@ -57,4 +57,4 @@ RUN pip install --upgrade pip \
   && pip install -r requirements.txt
   
 # Set ENTRYPOINT:
-ENTRYPOINT ["python", "app.py"]
+ENTRYPOINT ["python", "-u", "app.py"]
