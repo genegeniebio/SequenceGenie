@@ -6,19 +6,19 @@ All rights reserved.
 @author: neilswainston
 '''
 # pylint: disable=invalid-name
-# pylint: disable=no-name-in-module
 # pylint: disable=too-few-public-methods
+# pylint: disable=wrong-import-order
 from collections import defaultdict
 from operator import itemgetter
 import os
 import sys
 
 from Bio import Seq, SeqIO
+from mpl_toolkits.mplot3d import Axes3D
 from pysal.inequality import gini
 from synbiochem.utils import mut_utils, seq_utils
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import pandas as pd
 from seq_genie import utils

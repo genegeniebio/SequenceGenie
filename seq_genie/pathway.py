@@ -11,6 +11,7 @@ All rights reserved.
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-locals
+# pylint: disable=wrong-import-order
 from __future__ import division
 
 import multiprocessing
