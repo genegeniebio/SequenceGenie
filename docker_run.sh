@@ -1,4 +1,4 @@
-docker run -d -v "$1":/data -v "$1":/results sequencegenie \
+docker run -d -v $1/data:/data -v $1/results:/results sequencegenie \
 pathway \
 /results \
 "/data/barcodes.csv" \
