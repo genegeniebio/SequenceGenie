@@ -1,0 +1,7 @@
+../results
+data_dir
+https://ice.synbiochem.co.uk
+neil.swainston@manchester.ac.uk
+P@ris030416
+gaattcaaaagatcttttaagaag
+ttactcgagtttggatcc

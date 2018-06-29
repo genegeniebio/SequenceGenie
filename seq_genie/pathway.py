@@ -30,11 +30,9 @@ from seq_genie import utils, vcf_utils
 class PathwayAligner(object):
     '''Class to align NGS data to pathways.'''
 
-    def __init__(self, out_dir,
-                 barcodes_filename, reads_filename, ice_ids_filename,
+    def __init__(self, out_dir, in_dir,
                  ice_url, ice_username, ice_password,
                  for_primer, rev_primer, dp_filter=0.25):
-
         # Initialise project directory:
         self.__dir_name = os.path.join(out_dir, str(uuid.uuid4()))
         os.makedirs(self.__dir_name)
@@ -42,19 +40,20 @@ class PathwayAligner(object):
         # Get pathway sequences from ICE:
         self.__ice_files, self.__pcr_offsets = \
             _get_ice_files(ice_url, ice_username, ice_password,
-                           ice_ids_filename,
+                           os.path.join(in_dir, 'ice_ids.txt'),
                            for_primer, rev_primer,
                            self.__dir_name)
 
         # Demultiplex barcoded reads:
-        self.__reads = utils.get_reads(reads_filename)
+        self.__reads = utils.get_reads(in_dir)
 
         # Initialise vcf analyser:
         columns = sorted(self.__ice_files.keys())
 
-        self.__vcf_analyser = vcf_utils.VcfAnalyser(columns,
-                                                    barcodes_filename,
-                                                    self.__dir_name)
+        self.__vcf_analyser = \
+            vcf_utils.VcfAnalyser(columns,
+                                  os.path.join(in_dir, 'barcodes.csv'),
+                                  self.__dir_name)
 
         self.__barcodes = self.__vcf_analyser.get_src_ids()
 
@@ -129,6 +128,9 @@ def _get_ice_files(url, username, password, ice_ids_filename,
                                                      ice_id + '.fasta')),
                   len(seq))
                  for ice_id, seq in zip(ice_ids, seqs)}
+
+    print 'PCR sequence lengths: ' + \
+        str([[ice_id, len(seq)] for ice_id, seq in zip(ice_ids, seqs)])
 
     pcr_offsets = {ice_id: offset for ice_id, offset in zip(ice_ids, offsets)}
 

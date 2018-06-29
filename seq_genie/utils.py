@@ -48,14 +48,20 @@ def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
 
-            for seq in sequences:
+            for idx, seq in enumerate(sequences):
+                if idx % 100 == 0:
+                    print 'Binning seq: %d' % idx
+
                 thread_pool.add_task(_bin_seq, seq, max_barcode_len,
                                      search_len, score_threshold, barcodes,
                                      barcode_seqs)
 
             thread_pool.wait_completion()
         else:
-            for seq in sequences:
+            for idx, seq in enumerate(sequences):
+                if idx % 100 == 0:
+                    print 'Binning seq: %d' % idx
+
                 _bin_seq(seq, max_barcode_len, search_len, score_threshold,
                          barcodes, barcode_seqs)
     else:
