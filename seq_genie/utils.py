@@ -45,6 +45,8 @@ def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
                            for barcode in pair])
 
     if barcodes:
+        barcodes = _format_barcodes(barcodes)
+
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
 
@@ -195,6 +197,18 @@ def _get_reads(filename, min_length, reads):
         print err
 
 
+def _format_barcodes(barcodes):
+    '''Format barcodes to reduce number of get_rev_complement calls.'''
+    form_brcds = {}
+
+    for pair in barcodes:
+        forward = [pair[0], str(Seq.Seq(pair[1]).reverse_complement())]
+        reverse = [pair[1], str(Seq.Seq(pair[0]).reverse_complement())]
+        form_brcds[pair] = [forward, reverse]
+
+    return form_brcds
+
+
 def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
              barcode_seqs):
     '''Bin an individual sequence.'''
@@ -204,20 +218,26 @@ def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
     max_scores = score_threshold, score_threshold
     selected_barcodes = None
 
-    for pair in barcodes:
-        scores_forw = partial_ratio(pair[0], trim_seq_start), \
-            partial_ratio(pair[1], trim_seq_end.reverse_complement())
+    for orig, formatted in barcodes.iteritems():
+        scores_forw = partial_ratio(formatted[0][0], trim_seq_start), \
+            partial_ratio(formatted[0][1], trim_seq_end)
 
-        scores_rev = partial_ratio(pair[1], trim_seq_start), \
-            partial_ratio(pair[0], trim_seq_end.reverse_complement())
+        scores_rev = partial_ratio(formatted[1][0], trim_seq_start), \
+            partial_ratio(formatted[1][1], trim_seq_end)
 
         if scores_forw[0] > max_scores[0] and scores_forw[1] > max_scores[1]:
-            selected_barcodes = pair
+            selected_barcodes = orig
             max_scores = scores_forw
 
+            if scores_forw[0] == 100 and scores_forw[1] == 100:
+                break
+
         if scores_rev[0] > max_scores[0] and scores_rev[1] > max_scores[1]:
-            selected_barcodes = pair
+            selected_barcodes = orig
             max_scores = scores_rev
+
+            if scores_rev[0] == 100 and scores_rev[1] == 100:
+                break
 
     if selected_barcodes:
         barcode_seqs[selected_barcodes].append(seq)
