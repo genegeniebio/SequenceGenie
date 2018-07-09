@@ -40,6 +40,8 @@ def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
+    num_seqs = len(sequences)
+
     max_barcode_len = max([len(barcode)
                            for pair in barcodes
                            for barcode in pair])
@@ -52,7 +54,7 @@ def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
 
             for idx, seq in enumerate(sequences):
                 if idx % 100 == 0:
-                    print 'Binning seq: %d' % idx
+                    print 'Binning seq: %d/%d' % (idx, num_seqs)
 
                 thread_pool.add_task(_bin_seq, seq, max_barcode_len,
                                      search_len, score_threshold, barcodes,
