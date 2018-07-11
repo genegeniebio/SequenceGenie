@@ -53,11 +53,10 @@ class PathwayAligner(object):
         self.__vcf_analyser = \
             vcf_utils.VcfAnalyser(sorted(self.__ice_files.keys()),
                                   os.path.join(in_dir, 'barcodes.csv'),
+                                  dp_filter,
                                   self.__dir_name)
 
         self.__barcodes = self.__vcf_analyser.get_src_ids()
-
-        self.__dp_filter = dp_filter
 
     def score_alignments(self, num_threads=0):
         '''Score alignments.'''
@@ -81,8 +80,7 @@ class PathwayAligner(object):
                                      reads_filename,
                                      self.__ice_files,
                                      self.__pcr_offsets,
-                                     self.__vcf_analyser,
-                                     self.__dp_filter)
+                                     self.__vcf_analyser)
 
             thread_pool.wait_completion()
         else:
@@ -96,8 +94,7 @@ class PathwayAligner(object):
                                  reads_filename,
                                  self.__ice_files,
                                  self.__pcr_offsets,
-                                 self.__vcf_analyser,
-                                 self.__dp_filter)
+                                 self.__vcf_analyser)
 
         # Update summary:
         self.__vcf_analyser.write_summary()
@@ -145,17 +142,17 @@ def _get_barcode_ice(barcode_ice_filename):
 
 def _score_alignment(dir_name, barcodes, reads_filename,
                      ice_files, pcr_offsets,
-                     vcf_analyser, dp_filter):
+                     vcf_analyser):
     '''Score an alignment.'''
     for ice_id, (templ_filename, _) in ice_files.iteritems():
         _score_barcodes_ice(templ_filename, dir_name, barcodes,
                             ice_id, pcr_offsets[ice_id], reads_filename,
-                            vcf_analyser, dp_filter)
+                            vcf_analyser)
 
 
 def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
                         ice_id, pcr_offset, reads_filename,
-                        vcf_analyser, dp_filter):
+                        vcf_analyser):
     '''Score barcodes ice pair.'''
     barcode_ice = '_'.join(list(barcodes) + [ice_id])
     sam_filename = os.path.join(dir_name, barcode_ice + '.sam')
@@ -171,7 +168,7 @@ def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
 
     # Generate and analyse variants file:
     vcf_filename = utils.get_vcf(bam_filename, templ_pcr_filename, pcr_offset)
-    vcf_analyser.analyse(vcf_filename, ice_id, barcodes, dp_filter)
+    vcf_analyser.analyse(vcf_filename, ice_id, barcodes)
 
 
 def main(args):

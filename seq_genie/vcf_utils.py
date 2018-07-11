@@ -7,6 +7,7 @@ All rights reserved.
 '''
 # pylint: disable=invalid-name
 # pylint: disable=too-few-public-methods
+# pylint: disable=too-many-instance-attributes
 import itertools
 import os
 import re
@@ -19,11 +20,12 @@ import pandas as pd
 class VcfAnalyser(object):
     ''' Class to analyse vcf files.'''
 
-    def __init__(self, columns, src_filename, dir_name='.'):
-
+    def __init__(self, columns, src_filename, dp_filter, dir_name='.'):
         # Initialise summary:
         self.__summary_df = pd.read_csv(src_filename)
         self.__summary_df.dropna(inplace=True)
+
+        self.__dp_filter = dp_filter
 
         src_id_cols = ['forward', 'reverse']
         self.__src_ids = [tuple(pair)
@@ -33,12 +35,10 @@ class VcfAnalyser(object):
         self.__summary_df.set_index(src_id_cols, inplace=True)
 
         # Initialise specific Dataframes:
-        index = self.__summary_df.index
-        self.__mutations_df = pd.DataFrame(columns=columns, index=index)
-        self.__indels_df = pd.DataFrame(columns=columns, index=index)
-        self.__deletions_df = pd.DataFrame(columns=columns, index=index)
-        self.__identity_df = pd.DataFrame(columns=columns, index=index,
-                                          dtype='float')
+        self.__mutations_df = _init_df(self.__summary_df, columns)
+        self.__indels_df = _init_df(self.__summary_df, columns)
+        self.__deletions_df = _init_df(self.__summary_df, columns)
+        self.__identity_df = _init_df(self.__summary_df, columns)
 
         self.__dir_name = os.path.abspath(dir_name)
 
@@ -49,10 +49,10 @@ class VcfAnalyser(object):
         '''Get source ids.'''
         return self.__src_ids
 
-    def analyse(self, vcf_filename, target_id, src_id, dp_filter):
+    def analyse(self, vcf_filename, target_id, src_id):
         '''Analyse a given vcf file.'''
         num_matches, mutations, indels, deletions, templ_len = \
-            analyse_vcf(vcf_filename, dp_filter)
+            self.__analyse_vcf(vcf_filename)
 
         _set_value(self.__identity_df, num_matches / float(templ_len),
                    target_id, *src_id)
@@ -61,9 +61,31 @@ class VcfAnalyser(object):
         _set_value(self.__indels_df, indels, target_id, *src_id)
         _set_value(self.__deletions_df, deletions, target_id, *src_id)
 
-        self.write()
+        self.__write()
 
-    def write(self):
+    def write_summary(self):
+        '''Write summary output file.'''
+        self.__identity_df.fillna(0, inplace=True)
+        numerical_df = self.__identity_df.select_dtypes(include=[np.float])
+        self.__summary_df['matched_ice_id'] = numerical_df.idxmax(axis=1)
+        self.__summary_df['identity'] = numerical_df.max(axis=1)
+        self.__summary_df['mutations'] = \
+            self.__mutations_df.lookup(self.__mutations_df.index,
+                                       self.__summary_df['matched_ice_id'])
+        self.__summary_df['indels'] = \
+            self.__indels_df.lookup(self.__indels_df.index,
+                                    self.__summary_df['matched_ice_id'])
+        self.__summary_df['deletions'] = \
+            self.__deletions_df.lookup(self.__deletions_df.index,
+                                       self.__summary_df['matched_ice_id'])
+
+        # Remove spurious unidentified entries:
+        self.__summary_df = \
+            self.__summary_df[self.__summary_df['identity'] != 0]
+
+        self.__summary_df.to_csv(os.path.join(self.__dir_name, 'summary.csv'))
+
+    def __write(self):
         '''Write output files.'''
         self.__identity_df.to_csv(os.path.join(self.__dir_name,
                                                'identity.csv'))
@@ -73,63 +95,47 @@ class VcfAnalyser(object):
         self.__deletions_df.to_csv(os.path.join(self.__dir_name,
                                                 'deletions.csv'))
 
-    def write_summary(self):
-        '''Write summary output file.'''
-        self.__identity_df.fillna(0, inplace=True)
-        self.__summary_df['ice_id'] = self.__identity_df.idxmax(axis=1)
-        self.__summary_df['identity'] = self.__identity_df.max(axis=1)
-        self.__summary_df['mutations'] = \
-            self.__mutations_df.lookup(self.__mutations_df.index,
-                                       self.__summary_df['ice_id'])
-        self.__summary_df['indels'] = \
-            self.__indels_df.lookup(self.__indels_df.index,
-                                    self.__summary_df['ice_id'])
-        self.__summary_df['deletions'] = \
-            self.__deletions_df.lookup(self.__deletions_df.index,
-                                       self.__summary_df['ice_id'])
+    def __analyse_vcf(self, vcf_filename):
+        '''Analyse vcf file, returning number of matches, mutations and
+        indels.'''
+        num_matches = 0
+        mutations = []
+        indels = []
+        deletions = []
 
-        # Remove spurious unidentified entries:
-        self.__summary_df = \
-            self.__summary_df[self.__summary_df['identity'] != 0]
+        df, templ_len = _vcf_to_df(vcf_filename)
 
-        self.__summary_df.to_csv(os.path.join(self.__dir_name, 'summary.csv'))
+        for _, row in df.iterrows():
+            if 'INDEL' in row and row.INDEL:
+                indels.append(row['REF'] + str(row['POS']) + row['ALT'])
+            elif (self.__dp_filter > 1 and row['DP'] > self.__dp_filter) \
+                    or row['DP_PROP'] > self.__dp_filter:
+                alleles = [row['REF']] + row['ALT'].split(',')
 
+                # Extract QS values and order to find most-likely base:
+                qs = [float(val)
+                      for val in dict([term.split('=')
+                                       for term in row['INFO'].split(';')])
+                      ['QS'].split(',')]
 
-def analyse_vcf(vcf_filename, dp_filter):
-    '''Analyse vcf file, returning number of matches, mutations and indels.'''
-    num_matches = 0
-    mutations = []
-    indels = []
-    deletions = []
+                # Compare most-likely base to reference:
+                hi_prob_base = alleles[np.argmax(qs)]
 
-    df, templ_len = _vcf_to_df(vcf_filename)
-
-    for _, row in df.iterrows():
-        if 'INDEL' in row and row.INDEL:
-            indels.append(row['REF'] + str(row['POS']) + row['ALT'])
-        elif (dp_filter > 1 and row['DP'] > dp_filter) \
-                or row['DP_PROP'] > dp_filter:
-            alleles = [row['REF']] + row['ALT'].split(',')
-
-            # Extract QS values and order to find most-likely base:
-            qs = [float(val)
-                  for val in dict([term.split('=')
-                                   for term in row['INFO'].split(';')])
-                  ['QS'].split(',')]
-
-            # Compare most-likely base to reference:
-            hi_prob_base = alleles[np.argmax(qs)]
-
-            if row['REF'] != hi_prob_base:
-                mutations.append(row['REF'] + str(row['POS']) + hi_prob_base +
-                                 ' ' + str(max(qs)))
+                if row['REF'] != hi_prob_base:
+                    mutations.append(row['REF'] + str(row['POS']) +
+                                     hi_prob_base + ' ' + str(max(qs)))
+                else:
+                    num_matches += 1
             else:
-                num_matches += 1
-        else:
-            deletions.append(row['POS'])
+                deletions.append(row['POS'])
 
-    return num_matches, mutations, indels, _get_ranges_str(deletions), \
-        templ_len
+        return num_matches, mutations, indels, _get_ranges_str(deletions), \
+            templ_len
+
+
+def _init_df(parent_df, columns):
+    '''Initialise a results dataframe.'''
+    return pd.concat([pd.DataFrame(columns=columns), parent_df.copy()])
 
 
 def _vcf_to_df(vcf_filename):
@@ -204,9 +210,7 @@ def _set_value(df, val, col_id, *row_ids):
 
 def main(args):
     '''main method.'''
-    analyser = VcfAnalyser(args[4:], args[0], args[2])
-
-    dp_filter = float(args[3])
+    analyser = VcfAnalyser(args[4:], args[0], float(args[3]), args[2])
 
     for dirpath, _, filenames in os.walk(os.path.abspath(args[1])):
         for filename in filenames:
@@ -214,8 +218,7 @@ def main(args):
                 mtch = re.match(r'([^\.]*)_([^\.]*)\..*', filename)
                 analyser.analyse(os.path.join(dirpath, filename),
                                  mtch.group(2),
-                                 mtch.group(1).split('_'),
-                                 dp_filter)
+                                 mtch.group(1).split('_'))
 
     analyser.write_summary()
 
