@@ -38,20 +38,20 @@ class PathwayAligner(object):
         os.makedirs(self.__dir_name)
 
         # Get pathway sequences from ICE:
-        self.__ice_files, self.__pcr_offsets = \
+        self.__ice_files, self.__pcr_offsets, ice_lengths = \
             _get_ice_files(ice_url, ice_username, ice_password,
                            os.path.join(in_dir, 'ice_ids.txt'),
                            for_primer, rev_primer,
                            self.__dir_name)
 
-        # Demultiplex barcoded reads:
-        self.__reads = utils.get_reads(in_dir)
+        # Get reads:
+        self.__reads = utils.get_reads(in_dir, min_length=min(ice_lengths))
+
+        print 'Extracted %d filtered reads' % len(self.__reads)
 
         # Initialise vcf analyser:
-        columns = sorted(self.__ice_files.keys())
-
         self.__vcf_analyser = \
-            vcf_utils.VcfAnalyser(columns,
+            vcf_utils.VcfAnalyser(sorted(self.__ice_files.keys()),
                                   os.path.join(in_dir, 'barcodes.csv'),
                                   self.__dir_name)
 
@@ -65,7 +65,7 @@ class PathwayAligner(object):
             utils.index(templ_filename)
 
         barcode_reads = utils.bin_seqs(self.__barcodes, self.__reads,
-                                       num_threads)
+                                       num_threads=num_threads)
 
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
@@ -129,12 +129,9 @@ def _get_ice_files(url, username, password, ice_ids_filename,
                   len(seq))
                  for ice_id, seq in zip(ice_ids, seqs)}
 
-    print 'PCR sequence lengths: ' + \
-        str([[ice_id, len(seq)] for ice_id, seq in zip(ice_ids, seqs)])
-
     pcr_offsets = {ice_id: offset for ice_id, offset in zip(ice_ids, offsets)}
 
-    return ice_files, pcr_offsets
+    return ice_files, pcr_offsets, [len(seq) for seq in seqs]
 
 
 def _get_barcode_ice(barcode_ice_filename):

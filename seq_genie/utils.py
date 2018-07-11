@@ -35,8 +35,8 @@ def get_reads(reads_filename, min_length=0):
     return reads
 
 
-def bin_seqs(barcodes, sequences, score_threshold=90, search_len=256,
-             num_threads=0):
+def bin_seqs(barcodes, sequences, search_len=256,
+             num_threads=0, score_threshold=100):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
@@ -211,21 +211,44 @@ def _format_barcodes(barcodes):
     return form_brcds
 
 
-def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
+def _bin_seq(seq, max_barcode_len, search_len, score_thresh, barcodes,
              barcode_seqs):
     '''Bin an individual sequence.'''
-    trim_seq_start = seq.seq[:max_barcode_len + search_len]
-    trim_seq_end = seq.seq[-(max_barcode_len + search_len):]
+    seq_start = seq.seq[:max_barcode_len + search_len]
+    seq_end = seq.seq[-(max_barcode_len + search_len):]
 
+    selected_barcodes = \
+        _bin_seq_strict(seq_start, seq_end, barcodes) \
+        if score_thresh == 100 \
+        else _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_thresh)
+
+    if selected_barcodes:
+        barcode_seqs[selected_barcodes].append(seq)
+
+
+def _bin_seq_strict(seq_start, seq_end, barcodes):
+    '''Bin seq strict.'''
+    for orig, formatted in barcodes.iteritems():
+        if formatted[0][0] in seq_start and formatted[0][1] in seq_end:
+            return orig
+
+        if formatted[1][0] in seq_start and formatted[1][1] in seq_end:
+            return orig
+
+    return None
+
+
+def _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_threshold):
+    '''Bin seq fuzzy.'''
     max_scores = score_threshold, score_threshold
     selected_barcodes = None
 
     for orig, formatted in barcodes.iteritems():
-        scores_forw = partial_ratio(formatted[0][0], trim_seq_start), \
-            partial_ratio(formatted[0][1], trim_seq_end)
+        scores_forw = partial_ratio(formatted[0][0], seq_start), \
+            partial_ratio(formatted[0][1], seq_end)
 
-        scores_rev = partial_ratio(formatted[1][0], trim_seq_start), \
-            partial_ratio(formatted[1][1], trim_seq_end)
+        scores_rev = partial_ratio(formatted[1][0], seq_start), \
+            partial_ratio(formatted[1][1], seq_end)
 
         if scores_forw[0] > max_scores[0] and scores_forw[1] > max_scores[1]:
             selected_barcodes = orig
@@ -241,8 +264,7 @@ def _bin_seq(seq, max_barcode_len, search_len, score_threshold, barcodes,
             if scores_rev[0] == 100 and scores_rev[1] == 100:
                 break
 
-    if selected_barcodes:
-        barcode_seqs[selected_barcodes].append(seq)
+    return selected_barcodes
 
 
 def _replace_indels(sam_filename, templ_seq):
