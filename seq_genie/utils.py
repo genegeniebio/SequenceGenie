@@ -35,7 +35,7 @@ def get_reads(reads_filename, min_length=0):
     return reads
 
 
-def bin_seqs(barcodes, sequences, search_len=256,
+def bin_seqs(barcodes, sequences, search_len=32,
              num_threads=0, score_threshold=100):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
@@ -238,33 +238,41 @@ def _bin_seq_strict(seq_start, seq_end, barcodes):
     return None
 
 
-def _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_threshold):
+def _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_threshold,
+                   exhaustive=False):
     '''Bin seq fuzzy.'''
-    max_scores = score_threshold, score_threshold
-    selected_barcodes = None
+    best_barcodes = _bin_seq_strict(seq_start, seq_end, barcodes)
 
-    for orig, formatted in barcodes.iteritems():
-        scores_forw = partial_ratio(formatted[0][0], seq_start), \
-            partial_ratio(formatted[0][1], seq_end)
+    if not best_barcodes:
+        max_scores = score_threshold, score_threshold
 
-        scores_rev = partial_ratio(formatted[1][0], seq_start), \
-            partial_ratio(formatted[1][1], seq_end)
+        for orig, formatted in barcodes.iteritems():
+            for direction in formatted:
+                returned_barcodes, max_scores = \
+                    _check_scores(orig, direction, seq_start, seq_end,
+                                  max_scores)
 
-        if scores_forw[0] > max_scores[0] and scores_forw[1] > max_scores[1]:
-            selected_barcodes = orig
-            max_scores = scores_forw
+                if returned_barcodes:
+                    best_barcodes = returned_barcodes
 
-            if scores_forw[0] == 100 and scores_forw[1] == 100:
-                break
+                    if not exhaustive:
+                        break
 
-        if scores_rev[0] > max_scores[0] and scores_rev[1] > max_scores[1]:
-            selected_barcodes = orig
-            max_scores = scores_rev
+    return best_barcodes
 
-            if scores_rev[0] == 100 and scores_rev[1] == 100:
-                break
 
-    return selected_barcodes
+def _check_scores(orig, formatted, seq_start, seq_end, max_scores):
+    '''Check barcode scores.'''
+    barcodes = None
+
+    scores = partial_ratio(formatted[0], seq_start), \
+        partial_ratio(formatted[1], seq_end)
+
+    if scores[0] > max_scores[0] and scores[1] > max_scores[1]:
+        barcodes = orig
+        max_scores = scores
+
+    return barcodes, max_scores
 
 
 def _replace_indels(sam_filename, templ_seq):

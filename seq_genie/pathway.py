@@ -58,12 +58,13 @@ class PathwayAligner(object):
 
         self.__barcodes = self.__vcf_analyser.get_src_ids()
 
-    def score_alignments(self, num_threads=0):
+    def score_alignments(self, score_threshold, num_threads=0):
         '''Score alignments.'''
         for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
 
         barcode_reads = utils.bin_seqs(self.__barcodes, self.__reads,
+                                       score_threshold=score_threshold,
                                        num_threads=num_threads)
 
         if num_threads:
@@ -183,8 +184,8 @@ def main(args):
 
     print 'Running pathway with %d threads' % num_threads
 
-    aligner = PathwayAligner(*args[:-1])
-    aligner.score_alignments(num_threads)
+    aligner = PathwayAligner(*args[:-2])
+    aligner.score_alignments(float(args[-2]), num_threads)
 
 
 if __name__ == '__main__':
