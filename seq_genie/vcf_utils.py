@@ -8,10 +8,14 @@ All rights reserved.
 # pylint: disable=invalid-name
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-locals
 import itertools
 import os
 import re
 import sys
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 import numpy as np
 import pandas as pd
@@ -48,8 +52,11 @@ class VcfAnalyser(object):
 
     def analyse(self, vcf_filename, target_id, src_id):
         '''Analyse a given vcf file.'''
-        num_matches, mutations, indels, deletions, templ_len = \
+        num_matches, mutations, indels, deletions, templ_len, consensus_seq = \
             self.__analyse_vcf(vcf_filename)
+
+        record = SeqRecord(Seq(consensus_seq), id=vcf_filename)
+        SeqIO.write([record], vcf_filename + '.fasta', 'fasta')
 
         _set_value(self.__identity_df, num_matches / float(templ_len),
                    target_id, *src_id)
@@ -99,6 +106,7 @@ class VcfAnalyser(object):
         mutations = []
         indels = []
         deletions = []
+        consensus_seq = []
 
         df, templ_len = _vcf_to_df(vcf_filename)
 
@@ -117,6 +125,7 @@ class VcfAnalyser(object):
 
                 # Compare most-likely base to reference:
                 hi_prob_base = alleles[np.argmax(qs)]
+                consensus_seq.append(hi_prob_base)
 
                 if row['REF'] != hi_prob_base:
                     mutations.append(row['REF'] + str(row['POS']) +
@@ -127,7 +136,7 @@ class VcfAnalyser(object):
                 deletions.append(row['POS'])
 
         return num_matches, mutations, indels, _get_ranges_str(deletions), \
-            templ_len
+            templ_len, ''.join(consensus_seq)
 
 
 def _init_df(parent_df, columns):
