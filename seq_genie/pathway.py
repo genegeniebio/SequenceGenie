@@ -74,8 +74,10 @@ class PathwayAligner(object):
             thread_pool = thread_utils.ThreadPool(num_threads)
 
             for barcodes, reads in barcode_reads.iteritems():
-                reads_filename = os.path.join(self.__dir_name,
-                                              '_'.join(barcodes) + '.fasta')
+                reads_filename = \
+                    os.path.join(utils.get_dir(self.__dir_name, barcodes),
+                                 '_'.join(barcodes) + '.fasta')
+
                 SeqIO.write(reads, reads_filename, 'fasta')
 
                 thread_pool.add_task(_score_alignment,
@@ -89,8 +91,10 @@ class PathwayAligner(object):
             thread_pool.wait_completion()
         else:
             for barcodes, reads in barcode_reads.iteritems():
-                reads_filename = os.path.join(self.__dir_name,
-                                              '_'.join(barcodes) + '.fasta')
+                reads_filename = \
+                    os.path.join(utils.get_dir(self.__dir_name, barcodes),
+                                 '_'.join(barcodes) + '.fasta')
+
                 SeqIO.write(reads, reads_filename, 'fasta')
 
                 _score_alignment(self.__dir_name,
@@ -169,8 +173,9 @@ def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
                         vcf_analyser):
     '''Score barcodes ice pair.'''
     barcode_ice = '_'.join(list(barcodes) + [ice_id])
-    sam_filename = os.path.join(dir_name, barcode_ice + '.sam')
-    bam_filename = os.path.join(dir_name, barcode_ice + '.bam')
+    barcode_dir_name = utils.get_dir(dir_name, barcodes)
+    sam_filename = os.path.join(barcode_dir_name, barcode_ice + '.sam')
+    bam_filename = os.path.join(barcode_dir_name, barcode_ice + '.bam')
 
     # Align:
     utils.mem(templ_pcr_filename, reads_filename, sam_filename)

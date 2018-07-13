@@ -186,6 +186,16 @@ def replace_indels(sam_filename, templ_seq, out_filename=None):
     return out_filename
 
 
+def get_dir(parent_dir, barcodes):
+    '''Get directory from barcodes.'''
+    dir_name = os.path.join(parent_dir, '_'.join(barcodes))
+
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+
+    return dir_name
+
+
 def _get_reads(filename, min_length, reads):
     '''Gets reads.'''
     _, ext = splitext(filename)
