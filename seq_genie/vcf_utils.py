@@ -20,11 +20,8 @@ import pandas as pd
 class VcfAnalyser(object):
     ''' Class to analyse vcf files.'''
 
-    def __init__(self, columns, src_filename, dp_filter, dir_name='.'):
-        # Initialise summary:
-        self.__summary_df = pd.read_csv(src_filename)
-        self.__summary_df.dropna(inplace=True)
-
+    def __init__(self, columns, summary_df, dp_filter, dir_name='.'):
+        self.__summary_df = summary_df
         self.__dp_filter = dp_filter
 
         src_id_cols = ['forward', 'reverse']

@@ -50,9 +50,12 @@ class PathwayAligner(object):
         print 'Extracted %d filtered reads' % len(self.__reads)
 
         # Initialise vcf analyser:
+        self.__barcodes_df = pd.read_csv(os.path.join(in_dir, 'barcodes.csv'))
+        self.__barcodes_df.dropna(inplace=True)
+
         self.__vcf_analyser = \
             vcf_utils.VcfAnalyser(sorted(self.__ice_files.keys()),
-                                  os.path.join(in_dir, 'barcodes.csv'),
+                                  self.__barcodes_df,
                                   dp_filter,
                                   self.__dir_name)
 
@@ -79,7 +82,7 @@ class PathwayAligner(object):
                                      self.__dir_name,
                                      barcodes,
                                      reads_filename,
-                                     self.__ice_files,
+                                     self.__get_ice_files(barcodes),
                                      self.__pcr_offsets,
                                      self.__vcf_analyser)
 
@@ -93,7 +96,7 @@ class PathwayAligner(object):
                 _score_alignment(self.__dir_name,
                                  barcodes,
                                  reads_filename,
-                                 self.__ice_files,
+                                 self.__get_ice_files(barcodes),
                                  self.__pcr_offsets,
                                  self.__vcf_analyser)
 
@@ -104,6 +107,16 @@ class PathwayAligner(object):
         '''Get results.'''
         return self.__summary_df, self.__identity_df, self.__mutations_df, \
             self.__indels_df, self.__deletions_df
+
+    def __get_ice_files(self, barcodes):
+        '''Get appropriate ICE files.'''
+        ice_id = \
+            self._PathwayAligner__barcodes_df.loc[barcodes, 'actual_ice_id']
+
+        if ice_id:
+            return {ice_id: self.__ice_files[ice_id]}
+
+        return self.__ice_files
 
 
 def _get_ice_files(url, username, password, ice_ids_filename,
