@@ -55,8 +55,10 @@ class VcfAnalyser(object):
         num_matches, mutations, indels, deletions, templ_len, consensus_seq = \
             self.__analyse_vcf(vcf_filename)
 
+        consensus_filename = os.path.join(os.path.dirname(vcf_filename),
+                                          'consensus.fasta')
         record = SeqRecord(Seq(consensus_seq), id=vcf_filename)
-        SeqIO.write([record], vcf_filename + '.fasta', 'fasta')
+        SeqIO.write([record], consensus_filename, 'fasta')
 
         _set_value(self.__identity_df, num_matches / float(templ_len),
                    target_id, *src_id)

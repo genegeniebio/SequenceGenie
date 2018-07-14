@@ -76,7 +76,7 @@ class PathwayAligner(object):
             for barcodes, reads in barcode_reads.iteritems():
                 reads_filename = \
                     os.path.join(utils.get_dir(self.__dir_name, barcodes),
-                                 '_'.join(barcodes) + '.fasta')
+                                 'reads.fasta')
 
                 SeqIO.write(reads, reads_filename, 'fasta')
 
@@ -93,7 +93,7 @@ class PathwayAligner(object):
             for barcodes, reads in barcode_reads.iteritems():
                 reads_filename = \
                     os.path.join(utils.get_dir(self.__dir_name, barcodes),
-                                 '_'.join(barcodes) + '.fasta')
+                                 'reads.fasta')
 
                 SeqIO.write(reads, reads_filename, 'fasta')
 
@@ -146,6 +146,11 @@ def _get_ice_files(url, username, password, ice_ids_filename,
 
     pcr_offsets = {ice_id: offset for ice_id, offset in zip(ice_ids, offsets)}
 
+    # Get Genbank files for subsequent data analysis:
+    for ice_id in ice_ids:
+        gb_filename = os.path.join(dir_name, ice_id + '.gb')
+        ice_client.get_genbank(ice_id, gb_filename)
+
     return ice_files, pcr_offsets, [len(seq) for seq in seqs]
 
 
@@ -172,10 +177,9 @@ def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
                         ice_id, pcr_offset, reads_filename,
                         vcf_analyser):
     '''Score barcodes ice pair.'''
-    barcode_ice = '_'.join(list(barcodes) + [ice_id])
-    barcode_dir_name = utils.get_dir(dir_name, barcodes)
-    sam_filename = os.path.join(barcode_dir_name, barcode_ice + '.sam')
-    bam_filename = os.path.join(barcode_dir_name, barcode_ice + '.bam')
+    barcode_dir_name = utils.get_dir(dir_name, barcodes, ice_id)
+    sam_filename = os.path.join(barcode_dir_name, 'alignment.sam')
+    bam_filename = os.path.join(barcode_dir_name, 'alignment.bam')
 
     # Align:
     utils.mem(templ_pcr_filename, reads_filename, sam_filename)

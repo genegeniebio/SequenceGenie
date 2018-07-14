@@ -110,9 +110,12 @@ def get_vcf(bam_filename, templ_filename, pcr_offset=0):
 
     prc.communicate()
 
+    vcf_out_filename = os.path.join(os.path.dirname(bam_filename),
+                                    'variants.vcf')
+
     if pcr_offset:
         vcf_in = VariantFile(vcf_filename)
-        vcf_out = VariantFile(bam_filename + '.vcf', 'w', header=vcf_in.header)
+        vcf_out = VariantFile(vcf_out_filename, 'w', header=vcf_in.header)
 
         for rec in vcf_in.fetch():
             rec.pos = rec.pos + pcr_offset
@@ -120,7 +123,7 @@ def get_vcf(bam_filename, templ_filename, pcr_offset=0):
 
         vcf_out.close()
 
-    return bam_filename + '.vcf'
+    return vcf_out_filename
 
 
 def sort(in_filename, out_filename):
@@ -186,9 +189,12 @@ def replace_indels(sam_filename, templ_seq, out_filename=None):
     return out_filename
 
 
-def get_dir(parent_dir, barcodes):
+def get_dir(parent_dir, barcodes, ice_id=None):
     '''Get directory from barcodes.'''
     dir_name = os.path.join(parent_dir, '_'.join(barcodes))
+
+    if ice_id:
+        dir_name = os.path.join(dir_name, ice_id)
 
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
