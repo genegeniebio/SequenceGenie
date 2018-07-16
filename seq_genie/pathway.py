@@ -51,7 +51,7 @@ class PathwayAligner(object):
 
         # Initialise vcf analyser:
         self.__barcodes_df = pd.read_csv(os.path.join(in_dir, 'barcodes.csv'))
-        self.__barcodes_df.dropna(inplace=True)
+        self.__barcodes_df.fillna('', inplace=True)
 
         self.__vcf_analyser = \
             vcf_utils.VcfAnalyser(sorted(self.__ice_files.keys()),
