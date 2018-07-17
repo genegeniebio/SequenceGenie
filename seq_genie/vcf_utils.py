@@ -13,6 +13,7 @@ import itertools
 import os
 import re
 import sys
+
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -40,6 +41,7 @@ class VcfAnalyser(object):
         self.__indels_df = _init_df(self.__summary_df, columns)
         self.__deletions_df = _init_df(self.__summary_df, columns)
         self.__identity_df = _init_df(self.__summary_df, columns)
+        self.__depths_df = _init_df(self.__summary_df, columns)
 
         self.__dir_name = os.path.abspath(dir_name)
 
@@ -52,8 +54,8 @@ class VcfAnalyser(object):
 
     def analyse(self, vcf_filename, target_id, src_id):
         '''Analyse a given vcf file.'''
-        num_matches, mutations, indels, deletions, templ_len, consensus_seq = \
-            self.__analyse_vcf(vcf_filename)
+        num_matches, mutations, indels, deletions, templ_len, \
+            consensus_seq, depths = self.__analyse_vcf(vcf_filename)
 
         consensus_filename = os.path.join(os.path.dirname(vcf_filename),
                                           'consensus.fasta')
@@ -66,6 +68,7 @@ class VcfAnalyser(object):
         _set_value(self.__mutations_df, mutations, target_id, *src_id)
         _set_value(self.__indels_df, indels, target_id, *src_id)
         _set_value(self.__deletions_df, deletions, target_id, *src_id)
+        _set_value(self.__depths_df, max(depths), target_id, *src_id)
 
         self.__write()
 
@@ -84,6 +87,9 @@ class VcfAnalyser(object):
         self.__summary_df['deletions'] = \
             self.__deletions_df.lookup(self.__deletions_df.index,
                                        self.__summary_df['matched_ice_id'])
+        self.__summary_df['max_depth'] = \
+            self.__deletions_df.lookup(self.__depths_df.index,
+                                       self.__summary_df['matched_ice_id'])
 
         # Remove spurious unidentified entries:
         self.__summary_df = \
@@ -100,6 +106,8 @@ class VcfAnalyser(object):
         self.__indels_df.to_csv(os.path.join(self.__dir_name, 'indels.csv'))
         self.__deletions_df.to_csv(os.path.join(self.__dir_name,
                                                 'deletions.csv'))
+        self.__depths_df.to_csv(os.path.join(self.__dir_name,
+                                             'max_depths.csv'))
 
     def __analyse_vcf(self, vcf_filename):
         '''Analyse vcf file, returning number of matches, mutations and
@@ -109,6 +117,7 @@ class VcfAnalyser(object):
         indels = []
         deletions = []
         consensus_seq = []
+        depths = []
 
         df, templ_len = _vcf_to_df(vcf_filename)
 
@@ -134,11 +143,13 @@ class VcfAnalyser(object):
                                      hi_prob_base + ' ' + str(max(qs)))
                 else:
                     num_matches += 1
+
+                depths.append(row['DP'])
             else:
                 deletions.append(row['POS'])
 
         return num_matches, mutations, indels, _get_ranges_str(deletions), \
-            templ_len, ''.join(consensus_seq)
+            templ_len, ''.join(consensus_seq), depths
 
 
 def _init_df(parent_df, columns):

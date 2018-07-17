@@ -7,5 +7,5 @@ $2 \
 $3 \
 gaattcaaaagatcttttaagaag \
 ttactcgagtttggatcc \
-100 \
+$4 \
 True
