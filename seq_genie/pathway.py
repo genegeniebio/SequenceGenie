@@ -107,11 +107,6 @@ class PathwayAligner(object):
         # Update summary:
         self.__vcf_analyser.write_summary()
 
-    def get_results(self):
-        '''Get results.'''
-        return self.__summary_df, self.__identity_df, self.__mutations_df, \
-            self.__indels_df, self.__deletions_df
-
     def __get_ice_files(self, barcodes):
         '''Get appropriate ICE files.'''
         ice_id = \

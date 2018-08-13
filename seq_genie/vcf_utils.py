@@ -88,8 +88,8 @@ class VcfAnalyser(object):
             self.__deletions_df.lookup(self.__deletions_df.index,
                                        self.__summary_df['matched_ice_id'])
         self.__summary_df['max_depth'] = \
-            self.__deletions_df.lookup(self.__depths_df.index,
-                                       self.__summary_df['matched_ice_id'])
+            self.__depths_df.lookup(self.__depths_df.index,
+                                    self.__summary_df['matched_ice_id'])
 
         # Remove spurious unidentified entries:
         self.__summary_df = \
