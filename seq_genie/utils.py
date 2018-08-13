@@ -9,6 +9,8 @@ All rights reserved.
 # pylint: disable=no-name-in-module
 # pylint: disable=too-many-arguments
 from collections import defaultdict
+from itertools import izip_longest
+import math
 import os
 from os.path import splitext
 import subprocess
@@ -23,20 +25,21 @@ from synbiochem.utils import io_utils, thread_utils
 def get_reads(reads_filename, min_length=0):
     '''Gets reads.'''
     reads = []
+    total_reads = 0
 
     if os.path.isdir(reads_filename):
         for dirpath, _, filenames in os.walk(os.path.abspath(reads_filename)):
             for filename in filenames:
                 filename = os.path.join(dirpath, filename)
-                _get_reads(filename, min_length, reads)
+                total_reads += _get_reads(filename, min_length, reads)
     else:
-        _get_reads(reads_filename, min_length, reads)
+        total_reads += _get_reads(reads_filename, min_length, reads)
 
-    return reads
+    return reads, total_reads
 
 
 def bin_seqs(barcodes, sequences, search_len=32,
-             num_threads=0, score_threshold=100):
+             num_threads=0, score_threshold=100, batch_size = 32):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
@@ -52,22 +55,22 @@ def bin_seqs(barcodes, sequences, search_len=32,
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
 
-            for idx, seq in enumerate(sequences):
-                if idx % 100 == 0:
-                    print 'Binning seq: %d/%d' % (idx, num_seqs)
+            for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
+                print 'Binning batch: %d/%d' \
+                    % (idx + 1, math.ceil(num_seqs / float(batch_size)))
 
-                thread_pool.add_task(_bin_seq, seq, max_barcode_len,
+                thread_pool.add_task(_bin_seqs, seqs, max_barcode_len,
                                      search_len, score_threshold, barcodes,
                                      barcode_seqs)
 
             thread_pool.wait_completion()
         else:
-            for idx, seq in enumerate(sequences):
-                if idx % 100 == 0:
-                    print 'Binning seq: %d' % idx
+            for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
+                print 'Binning batch: %d/%d' \
+                    % (idx + 1, math.ceil(num_seqs / float(batch_size)))
 
-                _bin_seq(seq, max_barcode_len, search_len, score_threshold,
-                         barcodes, barcode_seqs)
+                _bin_seqs(seqs, max_barcode_len, search_len, score_threshold,
+                          barcodes, barcode_seqs)
     else:
         barcode_seqs['undefined'].extend(sequences)
 
@@ -208,11 +211,16 @@ def _get_reads(filename, min_length, reads):
 
     try:
         with open(filename, 'rU') as fle:
-            reads.extend([record
-                          for record in SeqIO.parse(fle, ext[1:])
+            all_reads = [record for record in SeqIO.parse(fle, ext[1:])]
+
+            reads.extend([record for record in all_reads
                           if len(record.seq) > min_length])
+
+            print 'Reading: %s' % filename
+            return len(all_reads)
     except (IOError, ValueError), err:
         print err
+        return 0
 
 
 def _format_barcodes(barcodes):
@@ -227,19 +235,21 @@ def _format_barcodes(barcodes):
     return form_brcds
 
 
-def _bin_seq(seq, max_barcode_len, search_len, score_thresh, barcodes,
-             barcode_seqs):
-    '''Bin an individual sequence.'''
-    seq_start = seq.seq[:max_barcode_len + search_len]
-    seq_end = seq.seq[-(max_barcode_len + search_len):]
+def _bin_seqs(seqs, max_barcode_len, search_len, score_thresh, barcodes,
+              barcode_seqs):
+    '''Bin a batch of sequences.'''
+    for seq in seqs:
+        if seq:
+            seq_start = seq.seq[:max_barcode_len + search_len]
+            seq_end = seq.seq[-(max_barcode_len + search_len):]
 
-    selected_barcodes = \
-        _bin_seq_strict(seq_start, seq_end, barcodes) \
-        if score_thresh == 100 \
-        else _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_thresh)
+            selected_barcodes = \
+                _bin_seq_strict(seq_start, seq_end, barcodes) \
+                if score_thresh == 100 \
+                else _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_thresh)
 
-    if selected_barcodes:
-        barcode_seqs[selected_barcodes].append(seq)
+            if selected_barcodes:
+                barcode_seqs[selected_barcodes].append(seq)
 
 
 def _bin_seq_strict(seq_start, seq_end, barcodes):
@@ -305,3 +315,9 @@ def _replace_indels(sam_filename, templ_seq):
 
         if seq:
             yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
+
+
+def _get_batch(iterable, batch_size=64, fillvalue=None):
+    '''Get a batch.'''
+    args = [iter(iterable)] * batch_size
+    return izip_longest(*args, fillvalue=fillvalue)

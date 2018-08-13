@@ -5,13 +5,6 @@ All rights reserved.
 
 @author: neilswainston
 '''
-# pylint: disable=invalid-name
-# pylint: disable=no-member
-# pylint: disable=too-few-public-methods
-# pylint: disable=too-many-arguments
-# pylint: disable=too-many-instance-attributes
-# pylint: disable=too-many-locals
-# pylint: disable=wrong-import-order
 from __future__ import division
 
 import multiprocessing
@@ -32,25 +25,31 @@ class PathwayAligner(object):
 
     def __init__(self, out_dir, in_dir,
                  ice_url, ice_username, ice_password,
-                 for_primer, rev_primer, dp_filter=0.25):
+                 for_primer, rev_primer, min_length=0, dp_filter=0.25):
         # Initialise project directory:
         self.__dir_name = os.path.join(out_dir, str(uuid.uuid4()))
         os.makedirs(self.__dir_name)
 
         # Get pathway sequences from ICE:
-        self.__ice_files, self.__pcr_offsets, ice_lengths = \
+        self.__ice_files, self.__pcr_offsets, _ = \
             _get_ice_files(ice_url, ice_username, ice_password,
                            os.path.join(in_dir, 'ice_ids.txt'),
                            for_primer, rev_primer,
                            self.__dir_name)
 
         # Get reads:
-        self.__reads = utils.get_reads(in_dir, min_length=min(ice_lengths))
+        self.__reads, total_reads = \
+            utils.get_reads(in_dir, min_length=min_length)
 
-        print 'Extracted %d filtered reads' % len(self.__reads)
+        print 'Extracted %d/%d (%.1f%%) filtered reads' \
+            % (len(self.__reads),
+               total_reads,
+               len(self.__reads) / total_reads * 100.0)
 
         # Initialise vcf analyser:
-        self.__barcodes_df = pd.read_csv(os.path.join(in_dir, 'barcodes.csv'))
+        self.__barcodes_df = \
+            pd.read_csv(os.path.join(in_dir, 'barcodes.csv'))
+
         self.__barcodes_df.fillna('', inplace=True)
 
         self.__vcf_analyser = \
@@ -69,6 +68,11 @@ class PathwayAligner(object):
         barcode_reads = utils.bin_seqs(self.__barcodes, self.__reads,
                                        score_threshold=score_threshold,
                                        num_threads=num_threads)
+
+        print 'Extracted %d/%d (%.1f%%) barcoded reads' \
+            % (len(barcode_reads),
+               len(self.__reads),
+               len(barcode_reads) / len(self.__reads) * 100.0)
 
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
@@ -201,7 +205,7 @@ def main(args):
 
     print 'Running pathway with %d threads' % num_threads
 
-    aligner = PathwayAligner(*args[:-2])
+    aligner = PathwayAligner(*args[:-3], min_length=int(args[-3]))
     aligner.score_alignments(float(args[-2]), num_threads)
 
 

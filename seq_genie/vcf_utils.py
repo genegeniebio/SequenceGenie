@@ -154,7 +154,8 @@ class VcfAnalyser(object):
 
 def _init_df(parent_df, columns):
     '''Initialise a results dataframe.'''
-    return pd.concat([pd.DataFrame(columns=columns), parent_df.copy()])
+    return pd.concat([pd.DataFrame(columns=columns), parent_df.copy()],
+                     sort=False)
 
 
 def _vcf_to_df(vcf_filename):
