@@ -39,7 +39,7 @@ def get_reads(reads_filename, min_length=0):
 
 
 def bin_seqs(barcodes, sequences, search_len=32,
-             num_threads=0, score_threshold=100, batch_size = 32):
+             num_threads=0, score_threshold=100, batch_size=32):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
@@ -246,7 +246,7 @@ def _bin_seqs(seqs, max_barcode_len, search_len, score_thresh, barcodes,
             selected_barcodes = \
                 _bin_seq_strict(seq_start, seq_end, barcodes) \
                 if score_thresh == 100 \
-                else _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_thresh)
+                else _bin_seq_window(seq_start, seq_end, barcodes)
 
             if selected_barcodes:
                 barcode_seqs[selected_barcodes].append(seq)
@@ -275,8 +275,8 @@ def _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_threshold,
         for orig, formatted in barcodes.iteritems():
             for direction in formatted:
                 returned_barcodes, max_scores = \
-                    _check_scores(orig, direction, seq_start, seq_end,
-                                  max_scores)
+                    _check_scores_fuzzy(orig, direction, seq_start, seq_end,
+                                        max_scores)
 
                 if returned_barcodes:
                     best_barcodes = returned_barcodes
@@ -287,7 +287,24 @@ def _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_threshold,
     return best_barcodes
 
 
-def _check_scores(orig, formatted, seq_start, seq_end, max_scores):
+def _bin_seq_window(seq_start, seq_end, barcodes):
+    '''Bin seq according to sliding window.'''
+    best_barcodes = _bin_seq_strict(seq_start, seq_end, barcodes)
+
+    if not best_barcodes:
+        for orig, formatted in barcodes.iteritems():
+            for direction in formatted:
+                returned_barcodes = \
+                    _check_scores_window(orig, direction, seq_start, seq_end)
+
+                if returned_barcodes:
+                    best_barcodes = returned_barcodes
+                    break
+
+    return best_barcodes
+
+
+def _check_scores_fuzzy(orig, formatted, seq_start, seq_end, max_scores):
     '''Check barcode scores.'''
     barcodes = None
 
@@ -299,6 +316,25 @@ def _check_scores(orig, formatted, seq_start, seq_end, max_scores):
         max_scores = scores
 
     return barcodes, max_scores
+
+
+def _check_scores_window(orig, formatted, seq_start, seq_end, window=8):
+    '''Check sliding window scores.'''
+    start = False
+
+    for substr in [formatted[0][i:i + window]
+                   for i in xrange(len(formatted[0]) - window + 1)]:
+        if substr in seq_start:
+            start = True
+            break
+
+    if start:
+        for substr in [formatted[1][i:i + window]
+                       for i in xrange(len(formatted[1]) - window + 1)]:
+            if substr in seq_end:
+                return orig
+
+    return None
 
 
 def _replace_indels(sam_filename, templ_seq):
