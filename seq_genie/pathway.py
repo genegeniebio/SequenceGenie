@@ -60,13 +60,13 @@ class PathwayAligner(object):
 
         self.__barcodes = self.__vcf_analyser.get_src_ids()
 
-    def score_alignments(self, score_threshold, num_threads=0):
+    def score_alignments(self, window_size, num_threads=0):
         '''Score alignments.'''
         for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
 
         barcode_reads = utils.bin_seqs(self.__barcodes, self.__reads,
-                                       score_threshold=score_threshold,
+                                       window_size=window_size,
                                        num_threads=num_threads)
 
         print 'Extracted %d/%d (%.1f%%) barcoded reads' \
@@ -113,11 +113,16 @@ class PathwayAligner(object):
 
     def __get_ice_files(self, barcodes):
         '''Get appropriate ICE files.'''
-        ice_id = \
-            self._PathwayAligner__barcodes_df.loc[barcodes, 'actual_ice_id']
+        try:
+            ice_id = \
+                self._PathwayAligner__barcodes_df.loc[barcodes,
+                                                      'actual_ice_id']
 
-        if ice_id:
-            return {ice_id: self.__ice_files[ice_id]}
+            if ice_id:
+                return {ice_id: self.__ice_files[ice_id]}
+        except KeyError:
+            print 'Unexpected barcodes: ' + str(barcodes)
+            return {}
 
         return self.__ice_files
 
@@ -189,7 +194,9 @@ def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
     os.remove(sam_filename)
 
     # Generate and analyse variants file:
-    vcf_filename = utils.get_vcf(bam_filename, templ_pcr_filename, pcr_offset)
+    vcf_filename = utils.get_vcf(bam_filename, templ_pcr_filename,
+                                 pcr_offset=0)
+
     vcf_analyser.analyse(vcf_filename, ice_id, barcodes)
 
 
@@ -211,7 +218,7 @@ def main(args):
     print 'Running pathway with %d threads' % num_threads
 
     aligner = PathwayAligner(*args[:-3], min_length=int(args[-3]))
-    aligner.score_alignments(float(args[-2]), num_threads)
+    aligner.score_alignments(int(args[-2]), num_threads)
 
     prf.disable()
 

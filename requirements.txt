@@ -1,4 +1,2 @@
-fuzzywuzzy
-python-Levenshtein
 pysam==0.11
 synbiochem-py

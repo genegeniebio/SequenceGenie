@@ -68,7 +68,8 @@ class VcfAnalyser(object):
         _set_value(self.__mutations_df, mutations, target_id, *src_id)
         _set_value(self.__indels_df, indels, target_id, *src_id)
         _set_value(self.__deletions_df, deletions, target_id, *src_id)
-        _set_value(self.__depths_df, max(depths), target_id, *src_id)
+        _set_value(self.__depths_df, max(depths) if depths else 0, target_id,
+                   *src_id)
 
         self.__write()
 

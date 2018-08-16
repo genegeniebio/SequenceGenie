@@ -10,16 +10,16 @@ All rights reserved.
 # pylint: disable=too-many-arguments
 from collections import defaultdict
 from itertools import izip_longest
-import math
 import os
 from os.path import splitext
 import subprocess
 import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
-from fuzzywuzzy.fuzz import partial_ratio
 from pysam import Samfile, VariantFile
 from synbiochem.utils import io_utils, thread_utils
+
+import numpy as np
 
 
 def get_reads(reads_filename, min_length=0):
@@ -38,8 +38,8 @@ def get_reads(reads_filename, min_length=0):
     return reads, total_reads
 
 
-def bin_seqs(barcodes, sequences, search_len=32,
-             num_threads=0, score_threshold=100, batch_size=32):
+def bin_seqs(barcodes, sequences, window_size, search_len=32,
+             num_threads=0, batch_size=32):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
@@ -56,21 +56,19 @@ def bin_seqs(barcodes, sequences, search_len=32,
             thread_pool = thread_utils.ThreadPool(num_threads)
 
             for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
-                print 'Binning batch: %d/%d' \
-                    % (idx + 1, math.ceil(num_seqs / float(batch_size)))
+                _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
 
                 thread_pool.add_task(_bin_seqs, seqs, max_barcode_len,
-                                     search_len, score_threshold, barcodes,
-                                     barcode_seqs)
+                                     search_len, barcodes, barcode_seqs,
+                                     window_size)
 
             thread_pool.wait_completion()
         else:
             for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
-                print 'Binning batch: %d/%d' \
-                    % (idx + 1, math.ceil(num_seqs / float(batch_size)))
+                _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
 
-                _bin_seqs(seqs, max_barcode_len, search_len, score_threshold,
-                          barcodes, barcode_seqs)
+                _bin_seqs(seqs, max_barcode_len, search_len, barcodes,
+                          barcode_seqs, window_size)
     else:
         barcode_seqs['undefined'].extend(sequences)
 
@@ -101,7 +99,8 @@ def get_vcf(bam_filename, templ_filename, pcr_offset=0):
     '''Generates a vcf file.'''
     vcf_filename = \
         tempfile.NamedTemporaryFile('w', suffix='.vcf', delete=False).name \
-        if pcr_offset else bam_filename + '.vcf'
+        if pcr_offset else os.path.join(os.path.dirname(bam_filename),
+                                        'variants.vcf')
 
     prc = subprocess.Popen(['samtools',
                             'mpileup',
@@ -113,20 +112,21 @@ def get_vcf(bam_filename, templ_filename, pcr_offset=0):
 
     prc.communicate()
 
-    vcf_out_filename = os.path.join(os.path.dirname(bam_filename),
-                                    'variants.vcf')
-
     if pcr_offset:
+        vcf_out_filename = os.path.join(os.path.dirname(bam_filename),
+                                        'variants.vcf')
         vcf_in = VariantFile(vcf_filename)
         vcf_out = VariantFile(vcf_out_filename, 'w', header=vcf_in.header)
 
         for rec in vcf_in.fetch():
             rec.pos = rec.pos + pcr_offset
+            print rec
             vcf_out.write(rec)
 
         vcf_out.close()
+        return vcf_out_filename
 
-    return vcf_out_filename
+    return vcf_filename
 
 
 def sort(in_filename, out_filename):
@@ -223,118 +223,83 @@ def _get_reads(filename, min_length, reads):
         return 0
 
 
+def _report_barcodes(idx, num_seqs, batch_size, barcode_seqs):
+    '''Report barcodes.'''
+    seq_lens = [len(seq) for seq in barcode_seqs.values()]
+
+    if seq_lens:
+        vals = ((idx + 1) * batch_size,
+                num_seqs,
+                sum(seq_lens),
+                min(seq_lens),
+                max(seq_lens),
+                np.mean(seq_lens),
+                np.median(seq_lens))
+
+        s = 'Seqs: %d/%d\tMatched: %d\tRange: %d-%d\tMean: %.1f\tMedian: %d'
+        print s % vals
+    else:
+        print 'Seqs: %d/%d' % ((idx + 1) * batch_size,  num_seqs)
+
+
 def _format_barcodes(barcodes):
     '''Format barcodes to reduce number of get_rev_complement calls.'''
-    form_brcds = {}
+    for_brcds = {}
+    rev_brcds = {}
 
     for pair in barcodes:
-        forward = [pair[0], str(Seq.Seq(pair[1]).reverse_complement())]
-        reverse = [pair[1], str(Seq.Seq(pair[0]).reverse_complement())]
-        form_brcds[pair] = [forward, reverse]
+        for_brcds[pair] = \
+            [pair[0], str(Seq.Seq(pair[1]).reverse_complement())]
+        rev_brcds[pair] = \
+            [pair[1], str(Seq.Seq(pair[0]).reverse_complement())]
 
-    return form_brcds
+    return for_brcds, rev_brcds
 
 
-def _bin_seqs(seqs, max_barcode_len, search_len, score_thresh, barcodes,
-              barcode_seqs):
+def _bin_seqs(seqs, max_barcode_len, search_len, barcodes, barcode_seqs,
+              window_size):
     '''Bin a batch of sequences.'''
     for seq in seqs:
-        if seq:
-            seq_start = seq.seq[:max_barcode_len + search_len]
-            seq_end = seq.seq[-(max_barcode_len + search_len):]
-
-            selected_barcodes = \
-                _bin_seq_strict(seq_start, seq_end, barcodes) \
-                if score_thresh == 100 \
-                else _bin_seq_window(seq_start, seq_end, barcodes)
-
-            if selected_barcodes:
-                barcode_seqs[selected_barcodes].append(seq)
+        for pairs in barcodes:
+            if _check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
+                          window_size):
+                break
 
 
-def _bin_seq_strict(seq_start, seq_end, barcodes):
-    '''Bin seq strict.'''
-    for orig, formatted in barcodes.iteritems():
-        if formatted[0][0] in seq_start and formatted[0][1] in seq_end:
-            return orig
+def _check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
+               window_size):
+    seq_start = seq.seq[:max_barcode_len + search_len]
+    seq_end = seq.seq[-(max_barcode_len + search_len):]
+    selected_barcodes = [None, None]
 
-        if formatted[1][0] in seq_start and formatted[1][1] in seq_end:
-            return orig
+    # Check all barcodes:
+    for orig, bc_pair in pairs.iteritems():
+        _check_pair(orig, bc_pair, seq_start, seq_end,
+                    selected_barcodes, window_size)
 
-    return None
+        if all(selected_barcodes):
+            barcode_seqs[tuple(selected_barcodes)].append(seq)
+            return True
 
-
-def _bin_seq_fuzzy(seq_start, seq_end, barcodes, score_threshold,
-                   exhaustive=False):
-    '''Bin seq fuzzy.'''
-    best_barcodes = _bin_seq_strict(seq_start, seq_end, barcodes)
-
-    if not best_barcodes:
-        max_scores = score_threshold, score_threshold
-
-        for orig, formatted in barcodes.iteritems():
-            for direction in formatted:
-                returned_barcodes, max_scores = \
-                    _check_scores_fuzzy(orig, direction, seq_start, seq_end,
-                                        max_scores)
-
-                if returned_barcodes:
-                    best_barcodes = returned_barcodes
-
-                    if not exhaustive:
-                        break
-
-    return best_barcodes
+    return False
 
 
-def _bin_seq_window(seq_start, seq_end, barcodes):
-    '''Bin seq according to sliding window.'''
-    best_barcodes = _bin_seq_strict(seq_start, seq_end, barcodes)
-
-    if not best_barcodes:
-        for orig, formatted in barcodes.iteritems():
-            for direction in formatted:
-                returned_barcodes = \
-                    _check_scores_window(orig, direction, seq_start, seq_end)
-
-                if returned_barcodes:
-                    best_barcodes = returned_barcodes
-                    break
-
-    return best_barcodes
-
-
-def _check_scores_fuzzy(orig, formatted, seq_start, seq_end, max_scores):
-    '''Check barcode scores.'''
-    barcodes = None
-
-    scores = partial_ratio(formatted[0], seq_start), \
-        partial_ratio(formatted[1], seq_end)
-
-    if scores[0] > max_scores[0] and scores[1] > max_scores[1]:
-        barcodes = orig
-        max_scores = scores
-
-    return barcodes, max_scores
-
-
-def _check_scores_window(orig, formatted, seq_start, seq_end, window=8):
+def _check_pair(orig, pair, seq_start, seq_end,
+                selected_barcodes, window_size):
     '''Check sliding window scores.'''
-    start = False
+    if not selected_barcodes[0]:
+        for substr in [pair[0][i:i + window_size]
+                       for i in xrange(len(pair[0]) - window_size + 1)]:
+            if substr in seq_start:
+                selected_barcodes[0] = orig[0]
+                break
 
-    for substr in [formatted[0][i:i + window]
-                   for i in xrange(len(formatted[0]) - window + 1)]:
-        if substr in seq_start:
-            start = True
-            break
-
-    if start:
-        for substr in [formatted[1][i:i + window]
-                       for i in xrange(len(formatted[1]) - window + 1)]:
+    if not selected_barcodes[1]:
+        for substr in [pair[1][i:i + window_size]
+                       for i in xrange(len(pair[1]) - window_size + 1)]:
             if substr in seq_end:
-                return orig
-
-    return None
+                selected_barcodes[1] = orig[1]
+                break
 
 
 def _replace_indels(sam_filename, templ_seq):
