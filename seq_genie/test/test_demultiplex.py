@@ -21,7 +21,7 @@ class Test(unittest.TestCase):
         barcodes = [('AAAAAAGGGGGG', 'AAAAAAGGGGGG')]
 
         directory = os.path.dirname(os.path.realpath(__file__))
-        filename = os.path.join(directory, 'seqs.txt')
+        filename = os.path.join(directory, 'simple_seqs.txt')
 
         with open(filename) as fle:
             seqs = [SeqRecord(line.strip()) for line in fle.readlines()]
