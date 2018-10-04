@@ -10,14 +10,14 @@ import unittest
 
 from Bio.SeqRecord import SeqRecord
 
-from seq_genie import utils
+from seq_genie import demultiplex
 
 
 class Test(unittest.TestCase):
     '''Class to test utils module.'''
 
-    def test_bin_seqs(self):
-        '''Test bin_seqs method.'''
+    def test_demuliplex_simple(self):
+        '''Test demuliplex method.'''
         barcodes = [('AAAAAAGGGGGG', 'AAAAAAGGGGGG')]
 
         directory = os.path.dirname(os.path.realpath(__file__))
@@ -26,9 +26,10 @@ class Test(unittest.TestCase):
         with open(filename) as fle:
             seqs = [SeqRecord(line.strip()) for line in fle.readlines()]
 
-        barcode_seqs = utils.bin_seqs(barcodes, seqs, search_len=20)
+        barcode_seqs = demultiplex.demultiplex(barcodes, seqs, window_size=8,
+                                               search_len=20)
 
-        self.assertEqual(len(barcode_seqs[barcodes[0]]), 2)
+        self.assertEqual(len(barcode_seqs[barcodes[0]]), 1)
 
 
 if __name__ == "__main__":

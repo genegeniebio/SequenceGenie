@@ -72,17 +72,19 @@ def bin_seqs(seqs, max_barcode_len, search_len, barcodes, barcode_seqs,
              window_size):
     '''Bin a batch of sequences.'''
     for seq in seqs:
-        for pairs in barcodes:
-            if check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
-                         window_size):
-                break
+        if seq:
+            for pairs in barcodes:
+                if check_seq(seq, max_barcode_len, search_len, pairs,
+                             barcode_seqs, window_size):
+                    break
 
 
 def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
               window_size):
     '''Check sequence against barcode sequences.'''
-    seq_start = seq.seq[:max_barcode_len + search_len]
-    seq_end = seq.seq[-(max_barcode_len + search_len):]
+    search_len = min(max_barcode_len + search_len, len(seq))
+    seq_start = seq.seq[:search_len]
+    seq_end = seq.seq[-(search_len):]
     selected_barcodes = [None, None]
 
     # Check all barcodes:
