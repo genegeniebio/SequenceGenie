@@ -15,18 +15,19 @@ import sys
 
 from Bio import Seq, SeqIO
 from mpl_toolkits.mplot3d import Axes3D
-from pysal.inequality import gini
 from synbiochem.utils import mut_utils, seq_utils
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from pysal.inequality import gini
 from seq_genie import utils
 
 
 def align(templ_filename, reads_filename, filtr=False):
     '''Align sequence files.'''
-    templ_seq = utils.get_reads(templ_filename)[0].seq
+    reads = utils.get_reads(templ_filename)
+    templ_seq = reads[0]
     reads_combined_filename = reads_filename + '.fasta'
 
     with open(reads_combined_filename, 'w') as reads_file:

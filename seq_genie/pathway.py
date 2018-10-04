@@ -5,6 +5,7 @@ All rights reserved.
 
 @author: neilswainston
 '''
+# pylint: disable=wrong-import-order
 from __future__ import division
 
 import multiprocessing
@@ -17,7 +18,7 @@ import pysam
 from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 import pandas as pd
-from seq_genie import utils, vcf_utils
+from seq_genie import demultiplex, utils, vcf_utils
 
 
 class PathwayAligner(object):
@@ -65,9 +66,9 @@ class PathwayAligner(object):
         for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
 
-        barcode_reads = utils.bin_seqs(self.__barcodes, self.__reads,
-                                       window_size=window_size,
-                                       num_threads=num_threads)
+        barcode_reads = demultiplex.demultiplex(self.__barcodes, self.__reads,
+                                                window_size=window_size,
+                                                num_threads=num_threads)
 
         print 'Extracted %d/%d (%.1f%%) barcoded reads' \
             % (len(barcode_reads),
