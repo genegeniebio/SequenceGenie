@@ -40,7 +40,7 @@ def demultiplex(barcodes, sequences, tolerance, search_len=32, num_threads=0,
 
                 thread_pool.add_task(bin_seqs, seqs, max_barcode_len,
                                      search_len, barcodes, barcode_seqs,
-                                     tolerance)
+                                     float(tolerance))
 
             thread_pool.wait_completion()
         else:
@@ -48,7 +48,7 @@ def demultiplex(barcodes, sequences, tolerance, search_len=32, num_threads=0,
                 _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
 
                 bin_seqs(seqs, max_barcode_len, search_len, barcodes,
-                         barcode_seqs, tolerance)
+                         barcode_seqs, float(tolerance))
     else:
         barcode_seqs['undefined'].extend(sequences)
 
@@ -113,14 +113,11 @@ def check_pair(orig, pair, seqs, selected_barcodes, tolerance):
 def check_barcode(orig, barcode, seq, tolerance):
     '''Check barcode.'''
     bc_len = len(barcode)
+    bc_tol = tolerance / bc_len + 1e-6
 
-    min_hamming = \
-        min([hamming(list(s), list(barcode))
-             for s in [seq[i:i + bc_len]
-                       for i in xrange(len(seq) - bc_len + 1)]])
-
-    if min_hamming <= (float(tolerance) / bc_len + 1e-6):
-        return orig
+    for substr in [seq[i:i + bc_len] for i in xrange(len(seq) - bc_len + 1)]:
+        if hamming(list(substr), list(barcode)) <= bc_tol:
+            return orig
 
     return None
 
