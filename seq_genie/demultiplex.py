@@ -12,13 +12,12 @@ from collections import defaultdict
 from itertools import izip_longest
 
 from Bio import Seq
-from scipy.spatial.distance import hamming
 from synbiochem.utils import thread_utils
 
 import numpy as np
 
 
-def demultiplex(barcodes, sequences, tolerance, search_len=32, num_threads=0,
+def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
                 batch_size=32):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
@@ -113,10 +112,11 @@ def check_pair(orig, pair, seqs, selected_barcodes, tolerance):
 def check_barcode(orig, barcode, seq, tolerance):
     '''Check barcode.'''
     bc_len = len(barcode)
-    bc_tol = tolerance / bc_len + 1e-6
 
     for substr in [seq[i:i + bc_len] for i in xrange(len(seq) - bc_len + 1)]:
-        if hamming(substr, barcode) <= bc_tol:
+        diff = sum([a != b for a, b in zip(substr, barcode)])
+
+        if diff <= tolerance:
             return orig
 
     return None
