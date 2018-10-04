@@ -61,13 +61,13 @@ class PathwayAligner(object):
 
         self.__barcodes = self.__vcf_analyser.get_src_ids()
 
-    def score_alignments(self, window_size, num_threads=0):
+    def score_alignments(self, tolerance, num_threads=0):
         '''Score alignments.'''
         for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
 
         barcode_reads = demultiplex.demultiplex(self.__barcodes, self.__reads,
-                                                window_size=window_size,
+                                                tolerance=tolerance,
                                                 num_threads=num_threads)
 
         print 'Extracted %d/%d (%.1f%%) barcoded reads' \
