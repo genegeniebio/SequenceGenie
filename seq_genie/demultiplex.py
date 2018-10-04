@@ -10,15 +10,16 @@ All rights reserved.
 # pylint: disable=wrong-import-order
 from collections import defaultdict
 from itertools import izip_longest
-import sys
+
 from Bio import Seq
+from scipy.spatial.distance import hamming
 from synbiochem.utils import thread_utils
 
 import numpy as np
 
 
-def demultiplex(barcodes, sequences, window_size, search_len=32,
-                num_threads=0, batch_size=32):
+def demultiplex(barcodes, sequences, tolerance, search_len=32, num_threads=0,
+                batch_size=32):
     '''Bin sequences according to barcodes.'''
     barcode_seqs = defaultdict(list)
 
@@ -39,7 +40,7 @@ def demultiplex(barcodes, sequences, window_size, search_len=32,
 
                 thread_pool.add_task(bin_seqs, seqs, max_barcode_len,
                                      search_len, barcodes, barcode_seqs,
-                                     window_size)
+                                     tolerance)
 
             thread_pool.wait_completion()
         else:
@@ -47,7 +48,7 @@ def demultiplex(barcodes, sequences, window_size, search_len=32,
                 _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
 
                 bin_seqs(seqs, max_barcode_len, search_len, barcodes,
-                         barcode_seqs, window_size)
+                         barcode_seqs, tolerance)
     else:
         barcode_seqs['undefined'].extend(sequences)
 
@@ -69,18 +70,18 @@ def format_barcodes(barcodes):
 
 
 def bin_seqs(seqs, max_barcode_len, search_len, barcodes, barcode_seqs,
-             window_size):
+             tolerance):
     '''Bin a batch of sequences.'''
     for seq in seqs:
         if seq:
             for pairs in barcodes:
                 if check_seq(seq, max_barcode_len, search_len, pairs,
-                             barcode_seqs, window_size):
+                             barcode_seqs, tolerance):
                     break
 
 
 def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
-              window_size):
+              tolerance):
     '''Check sequence against barcode sequences.'''
     search_len = min(max_barcode_len + search_len, len(seq))
     seq_start = seq.seq[:search_len]
@@ -89,8 +90,8 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
 
     # Check all barcodes:
     for orig, bc_pair in pairs.iteritems():
-        check_pair(orig, bc_pair, [seq_start, seq_end],
-                   selected_barcodes, window_size)
+        check_pair(orig, bc_pair, [seq_start, seq_end], selected_barcodes,
+                   tolerance)
 
         if all(selected_barcodes):
             barcode_seqs[tuple(selected_barcodes)].append(seq)
@@ -99,23 +100,27 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
     return False
 
 
-def check_pair(orig, pair, seqs,
-               selected_barcodes, window_size):
-    '''Check sliding window scores.'''
+def check_pair(orig, pair, seqs, selected_barcodes, tolerance):
+    '''Check similarity scores.'''
     for idx in range(2):
         if not selected_barcodes[idx]:
-            resp = check_barcode(orig[idx], pair[idx], seqs[idx], window_size)
+            resp = check_barcode(orig[idx], pair[idx], seqs[idx], tolerance)
 
             if resp:
                 selected_barcodes[idx] = resp
 
 
-def check_barcode(orig, barcode, seq, window_size):
+def check_barcode(orig, barcode, seq, tolerance):
     '''Check barcode.'''
-    for substr in [barcode[i:i + window_size]
-                   for i in xrange(len(barcode) - window_size + 1)]:
-        if substr in seq:
-            return orig
+    bc_len = len(barcode)
+
+    min_hamming = \
+        min([hamming(list(s), list(barcode))
+             for s in [seq[i:i + bc_len]
+                       for i in xrange(len(seq) - bc_len + 1)]])
+
+    if min_hamming <= (float(tolerance) / bc_len + 1e-6):
+        return orig
 
     return None
 
@@ -143,12 +148,3 @@ def _get_batch(iterable, batch_size=64, fillvalue=None):
     '''Get a batch.'''
     args = [iter(iterable)] * batch_size
     return izip_longest(*args, fillvalue=fillvalue)
-
-
-def main(args):
-    '''main.'''
-    bin_seqs(*args)
-
-
-if __name__ == '__main__':
-    main(sys.argv[1:])

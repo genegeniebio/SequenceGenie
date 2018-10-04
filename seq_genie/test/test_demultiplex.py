@@ -26,10 +26,9 @@ class Test(unittest.TestCase):
         with open(filename) as fle:
             seqs = [SeqRecord(line.strip()) for line in fle.readlines()]
 
-        barcode_seqs = demultiplex.demultiplex(barcodes, seqs, window_size=8,
-                                               search_len=20)
+        barcode_seqs = demultiplex.demultiplex(barcodes, seqs, tolerance=1)
 
-        self.assertEqual(len(barcode_seqs[barcodes[0]]), 1)
+        self.assertEqual(len(barcode_seqs[barcodes[0]]), 2)
 
 
 if __name__ == "__main__":
