@@ -89,7 +89,7 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
 
     # Check all barcodes:
     for orig, bc_pair in pairs.iteritems():
-        check_pair(orig, bc_pair, seq_start, seq_end,
+        check_pair(orig, bc_pair, [seq_start, seq_end],
                    selected_barcodes, window_size)
 
         if all(selected_barcodes):
@@ -99,22 +99,25 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
     return False
 
 
-def check_pair(orig, pair, seq_start, seq_end,
+def check_pair(orig, pair, seqs,
                selected_barcodes, window_size):
     '''Check sliding window scores.'''
-    if not selected_barcodes[0]:
-        for substr in [pair[0][i:i + window_size]
-                       for i in xrange(len(pair[0]) - window_size + 1)]:
-            if substr in seq_start:
-                selected_barcodes[0] = orig[0]
-                break
+    for idx in range(2):
+        if not selected_barcodes[idx]:
+            resp = check_barcode(orig[idx], pair[idx], seqs[idx], window_size)
 
-    if not selected_barcodes[1]:
-        for substr in [pair[1][i:i + window_size]
-                       for i in xrange(len(pair[1]) - window_size + 1)]:
-            if substr in seq_end:
-                selected_barcodes[1] = orig[1]
-                break
+            if resp:
+                selected_barcodes[idx] = resp
+
+
+def check_barcode(orig, barcode, seq, window_size):
+    '''Check barcode.'''
+    for substr in [barcode[i:i + window_size]
+                   for i in xrange(len(barcode) - window_size + 1)]:
+        if substr in seq:
+            return orig
+
+    return None
 
 
 def _report_barcodes(idx, num_seqs, batch_size, barcode_seqs):
