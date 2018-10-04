@@ -62,9 +62,9 @@ def format_barcodes(barcodes):
 
     for pair in barcodes:
         for_brcds[pair] = \
-            [pair[0], list(Seq.Seq(pair[1]).reverse_complement())]
+            [list(pair[0]), list(Seq.Seq(pair[1]).reverse_complement())]
         rev_brcds[pair] = \
-            [pair[1], list(Seq.Seq(pair[0]).reverse_complement())]
+            [list(pair[1]), list(Seq.Seq(pair[0]).reverse_complement())]
 
     return for_brcds, rev_brcds
 
@@ -84,8 +84,8 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
               tolerance):
     '''Check sequence against barcode sequences.'''
     search_len = min(max_barcode_len + search_len, len(seq))
-    seq_start = seq.seq[:search_len]
-    seq_end = seq.seq[-(search_len):]
+    seq_start = list(seq.seq[:search_len])
+    seq_end = list(seq.seq[-(search_len):])
     selected_barcodes = [None, None]
 
     # Check all barcodes:
@@ -116,7 +116,7 @@ def check_barcode(orig, barcode, seq, tolerance):
     bc_tol = tolerance / bc_len + 1e-6
 
     for substr in [seq[i:i + bc_len] for i in xrange(len(seq) - bc_len + 1)]:
-        if hamming(list(substr), barcode) <= bc_tol:
+        if hamming(substr, barcode) <= bc_tol:
             return orig
 
     return None
