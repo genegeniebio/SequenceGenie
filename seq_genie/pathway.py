@@ -26,7 +26,8 @@ class PathwayAligner(object):
 
     def __init__(self, out_dir, in_dir,
                  ice_url, ice_username, ice_password,
-                 for_primer, rev_primer, min_length=0, dp_filter=0.25):
+                 for_primer, rev_primer, min_length, max_reads,
+                 dp_filter=0.25):
         # Initialise project directory:
         self.__dir_name = os.path.join(out_dir, str(uuid.uuid4()))
         os.makedirs(self.__dir_name)
@@ -40,7 +41,8 @@ class PathwayAligner(object):
 
         # Get reads:
         self.__reads, total_reads = \
-            utils.get_reads(in_dir, min_length=min_length)
+            utils.get_reads(in_dir, min_length=min_length,
+                            max_reads=max_reads)
 
         print 'Extracted %d/%d (%.1f%%) filtered reads' \
             % (len(self.__reads),
@@ -213,7 +215,10 @@ def main(args):
 
     print 'Running pathway with %d threads' % num_threads
 
-    aligner = PathwayAligner(*args[:-3], min_length=int(args[-3]))
+    aligner = PathwayAligner(*args[:-4],
+                             min_length=int(args[-4]),
+                             max_reads=int(args[-3]))
+
     aligner.score_alignments(int(args[-2]), num_threads)
 
 

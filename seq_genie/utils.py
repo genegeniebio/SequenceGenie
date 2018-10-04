@@ -19,7 +19,7 @@ from pysam import Samfile, VariantFile
 from synbiochem.utils import io_utils
 
 
-def get_reads(reads_filename, min_length=0):
+def get_reads(reads_filename, min_length=0, max_reads=float('inf')):
     '''Gets reads.'''
     reads = []
     total_reads = 0
@@ -29,6 +29,9 @@ def get_reads(reads_filename, min_length=0):
             for filename in filenames:
                 filename = os.path.join(dirpath, filename)
                 total_reads += _get_reads(filename, min_length, reads)
+
+                if total_reads > max_reads:
+                    break
     else:
         total_reads += _get_reads(reads_filename, min_length, reads)
 
