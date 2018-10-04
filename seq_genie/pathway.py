@@ -203,11 +203,6 @@ def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
 
 def main(args):
     '''main method.'''
-    import cProfile
-
-    prf = cProfile.Profile()
-    prf.enable()
-
     try:
         num_threads = int(args[-1])
     except ValueError:
@@ -220,10 +215,6 @@ def main(args):
 
     aligner = PathwayAligner(*args[:-3], min_length=int(args[-3]))
     aligner.score_alignments(int(args[-2]), num_threads)
-
-    prf.disable()
-
-    prf.print_stats(sort='cumtime')
 
 
 if __name__ == '__main__':

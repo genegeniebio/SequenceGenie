@@ -18,8 +18,13 @@ import numpy as np
 
 
 def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
-                batch_size=32):
+                batch_size=64):
     '''Bin sequences according to barcodes.'''
+    import cProfile
+
+    prf = cProfile.Profile()
+    prf.enable()
+
     barcode_seqs = defaultdict(list)
 
     num_seqs = len(sequences)
@@ -39,7 +44,7 @@ def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
 
                 thread_pool.add_task(bin_seqs, seqs, max_barcode_len,
                                      search_len, barcodes, barcode_seqs,
-                                     float(tolerance))
+                                     tolerance)
 
             thread_pool.wait_completion()
         else:
@@ -50,6 +55,9 @@ def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
                          barcode_seqs, float(tolerance))
     else:
         barcode_seqs['undefined'].extend(sequences)
+
+    prf.disable()
+    prf.print_stats(sort='cumtime')
 
     return barcode_seqs
 
@@ -74,47 +82,56 @@ def bin_seqs(seqs, max_barcode_len, search_len, barcodes, barcode_seqs,
     for seq in seqs:
         if seq:
             for pairs in barcodes:
+                selected_barcodes = [None, None]
+
                 if check_seq(seq, max_barcode_len, search_len, pairs,
-                             barcode_seqs, tolerance):
+                             barcode_seqs, selected_barcodes, tolerance):
                     break
 
 
 def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
-              tolerance):
+              selected_barcodes, tolerance):
     '''Check sequence against barcode sequences.'''
-    search_len = min(max_barcode_len + search_len, len(seq))
-    seq_start = list(seq.seq[:search_len])
-    seq_end = list(seq.seq[-(search_len):])
-    selected_barcodes = [None, None]
+    seq_len = min(max_barcode_len + search_len, len(seq))
+    seq_start = list(seq.seq[:seq_len])
+    seq_end = list(seq.seq[-(seq_len):])
 
     # Check all barcodes:
     for orig, bc_pair in pairs.iteritems():
-        check_pair(orig, bc_pair, [seq_start, seq_end], selected_barcodes,
-                   tolerance)
+        check_pair(orig, bc_pair, [seq_start, seq_end], seq_len,
+                   selected_barcodes, tolerance)
 
-        if all(selected_barcodes):
+        if selected_barcodes[0] and selected_barcodes[1]:
             barcode_seqs[tuple(selected_barcodes)].append(seq)
             return True
 
     return False
 
 
-def check_pair(orig, pair, seqs, selected_barcodes, tolerance):
+def check_pair(orig, pair, seqs, seq_len, selected_barcodes, tolerance):
     '''Check similarity scores.'''
     for idx in range(2):
         if not selected_barcodes[idx]:
-            resp = check_barcode(orig[idx], pair[idx], seqs[idx], tolerance)
+            resp = check_barcode(orig[idx], pair[idx], seqs[idx], seq_len,
+                                 tolerance)
 
             if resp:
                 selected_barcodes[idx] = resp
 
 
-def check_barcode(orig, barcode, seq, tolerance):
+def check_barcode(orig, barcode, seq, seq_len, tolerance):
     '''Check barcode.'''
     bc_len = len(barcode)
 
-    for substr in [seq[i:i + bc_len] for i in xrange(len(seq) - bc_len + 1)]:
-        diff = sum([a != b for a, b in zip(substr, barcode)])
+    for substr in [seq[i:i + bc_len] for i in range(seq_len - bc_len + 1)]:
+        diff = 0
+
+        for idx, s in enumerate(substr):
+            if s != barcode[idx]:
+                diff += 1
+
+                if diff > tolerance:
+                    break
 
         if diff <= tolerance:
             return orig
