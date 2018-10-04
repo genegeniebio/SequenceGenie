@@ -20,11 +20,6 @@ import numpy as np
 def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
                 batch_size=64):
     '''Bin sequences according to barcodes.'''
-    import cProfile
-
-    prf = cProfile.Profile()
-    prf.enable()
-
     barcode_seqs = defaultdict(list)
 
     num_seqs = len(sequences)
@@ -55,9 +50,6 @@ def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
                          barcode_seqs, float(tolerance))
     else:
         barcode_seqs['undefined'].extend(sequences)
-
-    prf.disable()
-    prf.print_stats(sort='cumtime')
 
     return barcode_seqs
 
