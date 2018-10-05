@@ -8,7 +8,7 @@ All rights reserved.
 # pylint: disable=invalid-name
 # pylint: disable=too-many-arguments
 # pylint: disable=wrong-import-order
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from itertools import izip_longest
 
 from Bio import Seq
@@ -45,8 +45,8 @@ def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
                                                            idx,
                                                            num_seqs,
                                                            batch_size))
-                                for idx, seqs in enumerate(_get_batch(sequences,
-                                                                      batch_size))]
+                                for idx, seqs in enumerate(
+                                    _get_batch(sequences, batch_size))]
 
             barcode_seqs = _consolodate_bc_seqs(all_barcode_seqs)
         else:
@@ -66,13 +66,19 @@ def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
 
 def _consolodate_bc_seqs(all_barcode_seqs):
     '''Consolidate all barcode_seqs.'''
-    return {}
+    barcode_seqs = defaultdict(list)
+
+    for dct in all_barcode_seqs:
+        for k, v in dct.items():
+            barcode_seqs[k].extend(v)
+
+    return barcode_seqs
 
 
 def format_barcodes(barcodes):
     '''Format barcodes to reduce number of get_rev_complement calls.'''
-    for_brcds = {}
-    rev_brcds = {}
+    for_brcds = OrderedDict()
+    rev_brcds = OrderedDict()
 
     for pair in barcodes:
         for_brcds[pair] = \
@@ -118,8 +124,8 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
         if selected_barcodes[0] and selected_barcodes[1]:
             barcode_seqs[tuple(selected_barcodes)].append(seq)
 
-            print str(mp.current_process()) + '\t' + \
-                str(sum([len(lst) for lst in barcode_seqs.values()]))
+            # print str(mp.current_process()) + '\t' + \
+            #    str(sum([len(lst) for lst in barcode_seqs.values()]))
 
             return True
 

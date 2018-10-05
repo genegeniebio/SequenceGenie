@@ -47,11 +47,11 @@ class Test(unittest.TestCase):
         with open(os.path.join(directory, 'reads.fasta'), 'rU') as fle:
             seqs = list(SeqIO.parse(fle, 'fasta'))
 
-        barcode_seqs = demultiplex.demultiplex(barcodes, seqs, tolerance=10,
+        barcode_seqs = demultiplex.demultiplex(barcodes, seqs, tolerance=8,
                                                num_threads=0)
 
         bc_pair = ('GAGTCTTGTGTCCCAGTTACCAGG', 'CGGGCCCTTCATCTCTCAGCCGAT')
-        self.assertEqual(len(barcode_seqs[bc_pair]), 406)
+        self.assertEqual(len(barcode_seqs[bc_pair]), 261)
 
 
 if __name__ == "__main__":
