@@ -19,7 +19,23 @@ from seq_genie import demultiplex
 class Test(unittest.TestCase):
     '''Class to test utils module.'''
 
-    def test_demuliplex_simple(self):
+    def test_demuliplex_simple_single(self):
+        '''Test demuliplex method.'''
+        self.__test_demuliplex_simple(0)
+
+    def test_demuliplex_simple_multi(self):
+        '''Test demuliplex method.'''
+        self.__test_demuliplex_simple(2)
+
+    def test_demuliplex_complex_single(self):
+        '''Test demuliplex method.'''
+        self.__test_demuliplex_complex(0)
+
+    def test_demuliplex_complex_multi(self):
+        '''Test demuliplex method.'''
+        self.__test_demuliplex_complex(2)
+
+    def __test_demuliplex_simple(self, num_threads):
         '''Test demuliplex method.'''
         barcodes = [('AAAAAAGGGGGG', 'AAAAAAGGGGGG')]
 
@@ -29,11 +45,12 @@ class Test(unittest.TestCase):
         with open(filename) as fle:
             seqs = [SeqRecord(line.strip()) for line in fle.readlines()]
 
-        barcode_seqs = demultiplex.demultiplex(barcodes, seqs, tolerance=1)
+        barcode_seqs = demultiplex.demultiplex(barcodes, seqs, tolerance=1,
+                                               num_threads=num_threads)
 
         self.assertEqual(len(barcode_seqs[barcodes[0]]), 2)
 
-    def test_demuliplex_complex(self):
+    def __test_demuliplex_complex(self, num_threads):
         '''Test demuliplex method.'''
         directory = os.path.dirname(os.path.realpath(__file__))
 
@@ -48,7 +65,7 @@ class Test(unittest.TestCase):
             seqs = list(SeqIO.parse(fle, 'fasta'))
 
         barcode_seqs = demultiplex.demultiplex(barcodes, seqs, tolerance=8,
-                                               num_threads=0)
+                                               num_threads=num_threads)
 
         bc_pair = ('GAGTCTTGTGTCCCAGTTACCAGG', 'CGGGCCCTTCATCTCTCAGCCGAT')
         self.assertEqual(len(barcode_seqs[bc_pair]), 261)

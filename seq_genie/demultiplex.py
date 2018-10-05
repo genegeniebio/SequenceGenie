@@ -18,64 +18,31 @@ import numpy as np
 
 
 def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
-                batch_size=64):
+                batch_size=256):
     '''Bin sequences according to barcodes.'''
-    import cProfile
-
-    prf = cProfile.Profile()
-    prf.enable()
-
-    num_seqs = len(sequences)
-
-    max_barcode_len = max([len(barcode)
-                           for pair in barcodes
-                           for barcode in pair])
-
     if barcodes:
-        fomatted_barcodes = format_barcodes(barcodes)
+        max_barcode_len = max([len(barcode)
+                               for pair in barcodes
+                               for barcode in pair])
+
+        fomatted_barcodes = _format_barcodes(barcodes)
 
         if num_threads:
-            pool = mp.Pool(processes=num_threads)
-
-            all_barcode_seqs = [pool.apply(bin_seqs, args=(seqs,
-                                                           max_barcode_len,
-                                                           search_len,
-                                                           fomatted_barcodes,
-                                                           tolerance,
-                                                           idx,
-                                                           num_seqs,
-                                                           batch_size))
-                                for idx, seqs in enumerate(
-                                    _get_batch(sequences, batch_size))]
-
-            barcode_seqs = _consolodate_bc_seqs(all_barcode_seqs)
+            barcode_seqs = _demultiplex_multi(num_threads, max_barcode_len,
+                                              search_len, fomatted_barcodes,
+                                              tolerance, sequences,
+                                              batch_size)
         else:
-            barcode_seqs = defaultdict(list)
-
-            for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
-                bin_seqs(seqs, max_barcode_len, search_len, fomatted_barcodes,
-                         tolerance, idx, num_seqs, batch_size, barcode_seqs)
+            barcode_seqs = _demultiplex_single(max_barcode_len, search_len,
+                                               fomatted_barcodes, tolerance,
+                                               sequences, batch_size)
     else:
         barcode_seqs = {'undefined': sequences}
 
-    prf.disable()
-    prf.print_stats(sort='cumtime')
-
     return barcode_seqs
 
 
-def _consolodate_bc_seqs(all_barcode_seqs):
-    '''Consolidate all barcode_seqs.'''
-    barcode_seqs = defaultdict(list)
-
-    for dct in all_barcode_seqs:
-        for k, v in dct.items():
-            barcode_seqs[k].extend(v)
-
-    return barcode_seqs
-
-
-def format_barcodes(barcodes):
+def _format_barcodes(barcodes):
     '''Format barcodes to reduce number of get_rev_complement calls.'''
     for_brcds = OrderedDict()
     rev_brcds = OrderedDict()
@@ -89,8 +56,49 @@ def format_barcodes(barcodes):
     return for_brcds, rev_brcds
 
 
-def bin_seqs(seqs, max_barcode_len, search_len, barcodes, tolerance, idx,
-             num_seqs, batch_size, barcode_seqs=None):
+def _demultiplex_multi(num_threads, max_barcode_len, search_len,
+                       fomatted_barcodes, tolerance, sequences,
+                       batch_size):
+    '''Demultiplex multi-processor.'''
+    pool = mp.Pool(processes=num_threads)
+
+    results = [pool.apply_async(_bin_seqs, args=(seqs,
+                                                 max_barcode_len,
+                                                 search_len,
+                                                 fomatted_barcodes,
+                                                 tolerance,
+                                                 idx,
+                                                 len(sequences),
+                                                 batch_size))
+               for idx, seqs in enumerate(
+        _get_batch(sequences, batch_size))]
+
+    return _consolodate_bc_seqs([res.get()
+                                 for res in results])
+
+
+def _demultiplex_single(max_barcode_len, search_len,
+                        fomatted_barcodes, tolerance, sequences,
+                        batch_size):
+    '''Demultiplex single-processor.'''
+    barcode_seqs = defaultdict(list)
+
+    for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
+        _bin_seqs(seqs,
+                  max_barcode_len,
+                  search_len,
+                  fomatted_barcodes,
+                  tolerance,
+                  idx,
+                  len(sequences),
+                  batch_size,
+                  barcode_seqs)
+
+    return barcode_seqs
+
+
+def _bin_seqs(seqs, max_barcode_len, search_len, barcodes, tolerance, idx,
+              num_seqs, batch_size, barcode_seqs=None):
     '''Bin a batch of sequences.'''
     if barcode_seqs is None:
         barcode_seqs = defaultdict(list)
@@ -100,8 +108,8 @@ def bin_seqs(seqs, max_barcode_len, search_len, barcodes, tolerance, idx,
             for pairs in barcodes:
                 selected_barcodes = [None, None]
 
-                if check_seq(seq, max_barcode_len, search_len, pairs,
-                             barcode_seqs, selected_barcodes, tolerance):
+                if _check_seq(seq, max_barcode_len, search_len, pairs,
+                              barcode_seqs, selected_barcodes, tolerance):
                     break
 
     _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
@@ -109,8 +117,8 @@ def bin_seqs(seqs, max_barcode_len, search_len, barcodes, tolerance, idx,
     return barcode_seqs
 
 
-def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
-              selected_barcodes, tolerance):
+def _check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
+               selected_barcodes, tolerance):
     '''Check sequence against barcode sequences.'''
     seq_len = min(max_barcode_len + search_len, len(seq))
     seq_start = list(seq.seq[:seq_len])
@@ -118,8 +126,8 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
 
     # Check all barcodes:
     for orig, bc_pair in pairs.iteritems():
-        check_pair(orig, bc_pair, [seq_start, seq_end], seq_len,
-                   selected_barcodes, tolerance)
+        _check_pair(orig, bc_pair, [seq_start, seq_end], seq_len,
+                    selected_barcodes, tolerance)
 
         if selected_barcodes[0] and selected_barcodes[1]:
             barcode_seqs[tuple(selected_barcodes)].append(seq)
@@ -132,18 +140,18 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
     return False
 
 
-def check_pair(orig, pair, seqs, seq_len, selected_barcodes, tolerance):
+def _check_pair(orig, pair, seqs, seq_len, selected_barcodes, tolerance):
     '''Check similarity scores.'''
     for idx in range(2):
         if not selected_barcodes[idx]:
-            resp = check_barcode(orig[idx], pair[idx], seqs[idx], seq_len,
-                                 tolerance)
+            resp = _check_barcode(orig[idx], pair[idx], seqs[idx], seq_len,
+                                  tolerance)
 
             if resp:
                 selected_barcodes[idx] = resp
 
 
-def check_barcode(orig, barcode, seq, seq_len, tolerance):
+def _check_barcode(orig, barcode, seq, seq_len, tolerance):
     '''Check barcode.'''
     bc_len = len(barcode)
 
@@ -161,6 +169,17 @@ def check_barcode(orig, barcode, seq, seq_len, tolerance):
             return orig
 
     return None
+
+
+def _consolodate_bc_seqs(all_barcode_seqs):
+    '''Consolidate all barcode_seqs.'''
+    barcode_seqs = defaultdict(list)
+
+    for dct in all_barcode_seqs:
+        for k, v in dct.items():
+            barcode_seqs[k].extend(v)
+
+    return barcode_seqs
 
 
 def _report_barcodes(idx, num_seqs, batch_size, barcode_seqs):
