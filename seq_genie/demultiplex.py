@@ -12,15 +12,18 @@ from collections import defaultdict
 from itertools import izip_longest
 
 from Bio import Seq
-from synbiochem.utils import thread_utils
 
+import multiprocessing as mp
 import numpy as np
 
 
 def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
                 batch_size=64):
     '''Bin sequences according to barcodes.'''
-    barcode_seqs = defaultdict(list)
+    import cProfile
+
+    prf = cProfile.Profile()
+    prf.enable()
 
     num_seqs = len(sequences)
 
@@ -29,29 +32,41 @@ def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
                            for barcode in pair])
 
     if barcodes:
-        barcodes = format_barcodes(barcodes)
+        fomatted_barcodes = format_barcodes(barcodes)
 
         if num_threads:
-            thread_pool = thread_utils.ThreadPool(num_threads)
+            pool = mp.Pool(processes=num_threads)
 
-            for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
-                _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
+            all_barcode_seqs = [pool.apply(bin_seqs, args=(seqs,
+                                                           max_barcode_len,
+                                                           search_len,
+                                                           fomatted_barcodes,
+                                                           tolerance,
+                                                           idx,
+                                                           num_seqs,
+                                                           batch_size))
+                                for idx, seqs in enumerate(_get_batch(sequences,
+                                                                      batch_size))]
 
-                thread_pool.add_task(bin_seqs, seqs, max_barcode_len,
-                                     search_len, barcodes, barcode_seqs,
-                                     tolerance)
-
-            thread_pool.wait_completion()
+            barcode_seqs = _consolodate_bc_seqs(all_barcode_seqs)
         else:
-            for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
-                _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
+            barcode_seqs = defaultdict(list)
 
-                bin_seqs(seqs, max_barcode_len, search_len, barcodes,
-                         barcode_seqs, float(tolerance))
+            for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
+                bin_seqs(seqs, max_barcode_len, search_len, fomatted_barcodes,
+                         tolerance, idx, num_seqs, batch_size, barcode_seqs)
     else:
-        barcode_seqs['undefined'].extend(sequences)
+        barcode_seqs = {'undefined': sequences}
+
+    prf.disable()
+    prf.print_stats(sort='cumtime')
 
     return barcode_seqs
+
+
+def _consolodate_bc_seqs(all_barcode_seqs):
+    '''Consolidate all barcode_seqs.'''
+    return {}
 
 
 def format_barcodes(barcodes):
@@ -68,9 +83,12 @@ def format_barcodes(barcodes):
     return for_brcds, rev_brcds
 
 
-def bin_seqs(seqs, max_barcode_len, search_len, barcodes, barcode_seqs,
-             tolerance):
+def bin_seqs(seqs, max_barcode_len, search_len, barcodes, tolerance, idx,
+             num_seqs, batch_size, barcode_seqs=None):
     '''Bin a batch of sequences.'''
+    if barcode_seqs is None:
+        barcode_seqs = defaultdict(list)
+
     for seq in seqs:
         if seq:
             for pairs in barcodes:
@@ -79,6 +97,10 @@ def bin_seqs(seqs, max_barcode_len, search_len, barcodes, barcode_seqs,
                 if check_seq(seq, max_barcode_len, search_len, pairs,
                              barcode_seqs, selected_barcodes, tolerance):
                     break
+
+    _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
+
+    return barcode_seqs
 
 
 def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
@@ -95,6 +117,10 @@ def check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
 
         if selected_barcodes[0] and selected_barcodes[1]:
             barcode_seqs[tuple(selected_barcodes)].append(seq)
+
+            print str(mp.current_process()) + '\t' + \
+                str(sum([len(lst) for lst in barcode_seqs.values()]))
+
             return True
 
     return False
