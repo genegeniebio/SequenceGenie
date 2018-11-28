@@ -8,7 +8,6 @@ All rights reserved.
 # pylint: disable=invalid-name
 # pylint: disable=no-name-in-module
 
-
 import os
 from os.path import splitext
 import subprocess
@@ -83,7 +82,7 @@ def get_vcf(bam_filename, templ_filename, pcr_offset=0):
 
         for rec in vcf_in.fetch():
             rec.pos = rec.pos + pcr_offset
-            print rec
+            print(rec)
             vcf_out.write(rec)
 
         vcf_out.close()
@@ -179,10 +178,10 @@ def _get_reads(filename, min_length, reads):
             reads.extend([record for record in all_reads
                           if len(record.seq) > min_length])
 
-            print 'Reading: %s' % filename
+            print('Reading: %s' % filename)
             return len(all_reads)
-    except (IOError, ValueError), err:
-        print err
+    except (IOError, ValueError) as err:
+        print(err)
         return 0
 
 

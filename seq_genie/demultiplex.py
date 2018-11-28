@@ -9,7 +9,7 @@ All rights reserved.
 # pylint: disable=too-many-arguments
 # pylint: disable=wrong-import-order
 from collections import defaultdict, OrderedDict
-from itertools import izip_longest
+from itertools import zip_longest
 
 from Bio import Seq
 
@@ -196,12 +196,12 @@ def _report_barcodes(idx, num_seqs, batch_size, barcode_seqs):
                 np.median(seq_lens))
 
         s = 'Seqs: %d/%d\tMatched: %d\tRange: %d-%d\tMean: %.1f\tMedian: %d'
-        print s % vals
+        print(s % vals)
     else:
-        print 'Seqs: %d/%d' % ((idx + 1) * batch_size,  num_seqs)
+        print('Seqs: %d/%d' % ((idx + 1) * batch_size, num_seqs))
 
 
 def _get_batch(iterable, batch_size=64, fillvalue=None):
     '''Get a batch.'''
     args = [iter(iterable)] * batch_size
-    return izip_longest(*args, fillvalue=fillvalue)
+    return zip_longest(*args, fillvalue=fillvalue)

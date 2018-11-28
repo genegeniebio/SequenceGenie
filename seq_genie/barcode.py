@@ -22,7 +22,7 @@ def get_seqs(num_barcodes, length, max_repeat_nuc, evalue=1):
             continue
 
         barcodes[len(barcodes)] = barcode
-        print str(len(barcodes)) + '\t' + barcode
+        print(str(len(barcodes)) + '\t' + barcode)
 
     return barcodes.values()
 

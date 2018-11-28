@@ -15,13 +15,13 @@ import sys
 
 from Bio import Seq, SeqIO
 from mpl_toolkits.mplot3d import Axes3D
-from synbiochem.utils import mut_utils, seq_utils
+from pysal.inequality import gini
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pysal.inequality import gini
 from seq_genie import utils
+from synbiochem.utils import mut_utils, seq_utils
 
 
 def align(templ_filename, reads_filename, filtr=False):
@@ -107,13 +107,14 @@ def _analyse_aa_mut(read, template_aa):
     if len(read_aa) == len(template_aa):
         read_muts = {}
 
-        for (pos, aas) in enumerate(zip(read_aa, template_aa)[:-1]):
+        for (pos, aas) in enumerate(list(zip(read_aa, template_aa))[:-1]):
             if aas[0] != aas[1]:
                 read_muts[pos] = aas[0]
 
         if len(read_muts) == 1:
             return (read_muts.keys()[0], read_muts.values()[0], read_aa)
-        elif not read_muts:
+
+        if not read_muts:
             return (None, None, read_aa)
 
     return None
@@ -188,7 +189,7 @@ def get_gini(muts):
         for mut_res in act_bin:
             if mut_res != '*':
                 scores.append(
-                    (1 - mut_probs.get_mut_prob(muts[0], mut_res)) * 10**idx)
+                    (1 - mut_probs.get_mut_prob(muts[0], mut_res)) * 10 ** idx)
 
     return gini.Gini(scores).g if scores else 0
 
@@ -205,7 +206,7 @@ def main(args):
     # Analyse:
     muts, seqs_to_bins = analyse_aa_mut(sam_files, templ_aa_seq)
 
-    for seq, bins in seqs_to_bins.iteritems():
+    for seq, bins in seqs_to_bins.items():
         seqs_to_bins[seq] = [seq,
                              mut_utils.get_mutations(templ_aa_seq, seq),
                              bins,
@@ -227,7 +228,7 @@ def main(args):
     plot_heatmap(seqs_to_bins.values(), len(templ_aa_seq))
 
 
-class MutProbs(object):
+class MutProbs():
     '''Class to represent mutation probabilities.'''
 
     def __init__(self):

@@ -5,6 +5,12 @@ All rights reserved.
 
 @author: neilswainston
 '''
+# pylint: disable=no-member
+# pylint: disable=no-name-in-module
+# pylint: disable=too-few-public-methods
+# pylint: disable=too-many-arguments
+# pylint: disable=too-many-locals
+# pylint: disable=unused-argument
 # pylint: disable=wrong-import-order
 from __future__ import division
 
@@ -15,13 +21,13 @@ import uuid
 
 from Bio import SeqIO
 import pysam
-from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 import pandas as pd
 from seq_genie import demultiplex, utils, vcf_utils
+from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 
-class PathwayAligner(object):
+class PathwayAligner():
     '''Class to align NGS data to pathways.'''
 
     def __init__(self, out_dir, in_dir,
@@ -44,10 +50,9 @@ class PathwayAligner(object):
             utils.get_reads(in_dir, min_length=min_length,
                             max_reads=max_reads)
 
-        print 'Extracted %d/%d (%.1f%%) filtered reads' \
-            % (len(self.__reads),
-               total_reads,
-               len(self.__reads) / total_reads * 100.0)
+        print('Extracted %d/%d (%.1f%%) filtered reads'
+              % (len(self.__reads), total_reads,
+                 len(self.__reads) / total_reads * 100.0))
 
         # Initialise vcf analyser:
         self.__barcodes_df = \
@@ -72,10 +77,10 @@ class PathwayAligner(object):
                                                 tolerance=tolerance,
                                                 num_threads=num_threads)
 
-        print 'Extracted %d/%d (%.1f%%) barcoded reads' \
-            % (len(barcode_reads),
-               len(self.__reads),
-               len(barcode_reads) / len(self.__reads) * 100.0)
+        print('Extracted %d/%d (%.1f%%) barcoded reads'
+              % (len(barcode_reads),
+                 len(self.__reads),
+                 len(barcode_reads) / len(self.__reads) * 100.0))
 
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
@@ -124,7 +129,7 @@ class PathwayAligner(object):
             if ice_id:
                 return {ice_id: self.__ice_files[ice_id]}
         except KeyError:
-            print 'Unexpected barcodes: ' + str(barcodes)
+            print('Unexpected barcodes: ' + str(barcodes))
             return {}
 
         return self.__ice_files
@@ -213,7 +218,7 @@ def main(args):
         else:
             num_threads = 0
 
-    print 'Running pathway with %d threads' % num_threads
+    print('Running pathway with %d threads' % num_threads)
 
     aligner = PathwayAligner(*args[:-4],
                              min_length=int(args[-4]),

@@ -17,15 +17,14 @@ import sys
 import time
 
 from Bio import pairwise2, SeqIO, Seq
-from synbiochem.utils import mut_utils, seq_utils
 
 import numpy as np
-
+from synbiochem.utils import mut_utils, seq_utils
 
 _NUCL_IDX = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
 
 
-class Aligner(object):
+class Aligner():
     '''Aligner class.'''
 
     def __init__(self, wt_filename, seqs_filename, mut_strs=None,
@@ -70,8 +69,8 @@ class Aligner(object):
         for _ in range(nprocs):
             results.update(queue.get())
 
-        print len(results)
-        print time.time() - start
+        print(len(results))
+        print(time.time() - start)
 
     def __align(self, seqs, queue):
         '''Aligns sequences.'''
@@ -151,7 +150,7 @@ def _get_nucl_probs():
     '''Gets nucleotide probabilities.'''
     probs = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])
 
-    for ambig, nucls in seq_utils.INV_NUCL_CODES.iteritems():
+    for ambig, nucls in seq_utils.INV_NUCL_CODES.items():
         for nucl in nucls:
             probs[ambig][_NUCL_IDX[nucl]] = 1.0 / len(nucls)
 
@@ -180,14 +179,14 @@ def _process_aln(seq_id, aln):
         if math.isnan(start) and pos[0] != '-':
             start = idx
 
-    print seq_id
-    print aln[0][start:]
-    print ''.join(alignment)[start:]
-    print aln[1][start:]
-    print
+    print(seq_id)
+    print(aln[0][start:])
+    print(''.join(alignment)[start:])
+    print(aln[1][start:])
+    print()
 
 
-class Matcher(object):
+class Matcher():
     '''Matcher class implements match_fn.'''
 
     def __init__(self, seq_len, pos_spec_probs):

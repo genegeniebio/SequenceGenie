@@ -12,10 +12,10 @@ import sys
 
 from Bio import SeqIO, SeqRecord
 import pysam
-from synbiochem.utils.mut_utils import get_mutations
-from synbiochem.utils.seq_utils import INV_NUCL_CODES
 
 from seq_genie import protein, utils
+from synbiochem.utils.mut_utils import get_mutations
+from synbiochem.utils.seq_utils import INV_NUCL_CODES
 
 
 def _analyse(sam_filename, templ_filename, mut_templ_filename):
@@ -48,7 +48,7 @@ def _strip(sam_filename, templ_seq, mut_templ_seq):
     for read in pysam.AlignmentFile(sam_filename, 'r'):
         # Perform mapping of nucl indices to remove N:
         if read.aligned_pairs:
-            templ_idx = zip(*read.aligned_pairs)[1]
+            templ_idx = list(zip(*read.aligned_pairs))[1]
             prefix = templ_seq[:min([val for val in templ_idx if val])]
             suffix = templ_seq[max(templ_idx) + 1:]
             seq = ''.join([read.seq[pair[0]]
