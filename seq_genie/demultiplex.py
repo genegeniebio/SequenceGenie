@@ -6,10 +6,15 @@ All rights reserved.
 @author: neilswainston
 '''
 # pylint: disable=invalid-name
+# pylint: disable=superfluous-parens
 # pylint: disable=too-many-arguments
 # pylint: disable=wrong-import-order
 from collections import defaultdict, OrderedDict
-from itertools import zip_longest
+
+try:
+    from itertools import zip_longest as zip_longest
+except ImportError:
+    from itertools import izip_longest as zip_longest
 
 from Bio import Seq
 

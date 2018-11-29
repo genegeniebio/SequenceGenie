@@ -6,6 +6,8 @@ All rights reserved.
 @author: neilswainston
 '''
 # pylint: disable=invalid-name
+# pylint: disable=old-style-class
+# pylint: disable=superfluous-parens
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-instance-attributes
@@ -17,9 +19,9 @@ import sys
 import time
 
 from Bio import pairwise2, SeqIO, Seq
+from synbiochem.utils import mut_utils, seq_utils
 
 import numpy as np
-from synbiochem.utils import mut_utils, seq_utils
 
 _NUCL_IDX = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
 

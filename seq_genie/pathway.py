@@ -21,10 +21,10 @@ import uuid
 
 from Bio import SeqIO
 import pysam
+from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 import pandas as pd
 from seq_genie import demultiplex, utils, vcf_utils
-from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
 
 class PathwayAligner():

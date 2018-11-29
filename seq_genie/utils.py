@@ -7,7 +7,7 @@ All rights reserved.
 '''
 # pylint: disable=invalid-name
 # pylint: disable=no-name-in-module
-
+# pylint: disable=superfluous-parens
 import os
 from os.path import splitext
 import subprocess
