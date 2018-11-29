@@ -7,6 +7,7 @@ All rights reserved.
 '''
 # pylint: disable=no-member
 # pylint: disable=no-name-in-module
+# pylint: disable=superfluous-parens
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-locals
