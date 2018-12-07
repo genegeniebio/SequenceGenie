@@ -30,7 +30,7 @@ def _check_barcode(orig, barcode, seq, seq_len, tolerance):
     bc_len = len(barcode)
 
     for substr in [seq[i:i + bc_len] for i in range(seq_len - bc_len + 1)]:
-        alignments = pairwise2.align.globalxs(barcode, substr, -1, -1)
+        alignments = pairwise2.align.globalxs(barcode, substr, -2, -2)
         score = max([aln[2] for aln in alignments])
 
         if bc_len - score <= tolerance:
