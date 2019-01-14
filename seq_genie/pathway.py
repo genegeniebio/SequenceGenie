@@ -144,8 +144,8 @@ def _get_ice_files(url, username, password, ice_ids_filename,
     with open(ice_ids_filename, 'rU') as ice_ids_file:
         ice_ids = [line.strip() for line in ice_ids_file]
 
-    seqs_offsets = [utils.pcr(ice_client.get_ice_entry(ice_id).get_seq(),
-                              for_primer, rev_primer)
+    seqs_offsets = [seq_utils.pcr(ice_client.get_ice_entry(ice_id).get_seq(),
+                                  for_primer, rev_primer)
                     for ice_id in ice_ids]
 
     seqs, offsets = zip(*seqs_offsets)

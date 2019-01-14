@@ -108,24 +108,6 @@ def sort(in_filename, out_filename):
     return out_filename
 
 
-def pcr(seq, forward_primer, reverse_primer):
-    '''Apply in silico PCR.'''
-    for_primer_pos = seq.find(forward_primer.upper())
-
-    rev_primer_pos = \
-        seq.find(str(Seq.Seq(reverse_primer).reverse_complement().upper()))
-
-    if for_primer_pos > -1 and rev_primer_pos > -1:
-        seq = seq[for_primer_pos:] + \
-            seq[:rev_primer_pos + len(reverse_primer)]
-    elif for_primer_pos > -1:
-        seq = seq[for_primer_pos:]
-    elif rev_primer_pos > -1:
-        seq = seq[:rev_primer_pos + len(reverse_primer)]
-
-    return seq, for_primer_pos
-
-
 def reject_indels(sam_filename, templ_seq, out_filename=None):
     '''Rejects indels.'''
     out_filename = io_utils.get_filename(out_filename)
