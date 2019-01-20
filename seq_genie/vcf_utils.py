@@ -7,6 +7,7 @@ All rights reserved.
 '''
 # pylint: disable=invalid-name
 # pylint: disable=too-few-public-methods
+# pylint: disable=too-many-arguments
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-locals
 import itertools
@@ -75,26 +76,9 @@ class VcfAnalyser(object):
 
     def write_summary(self):
         '''Write summary output file.'''
-        self.__identity_df.fillna(0, inplace=True)
-        numerical_df = self.__identity_df.select_dtypes(include=[np.float])
-        self.__summary_df['matched_ice_id'] = numerical_df.idxmax(axis=1)
-        self.__summary_df['identity'] = numerical_df.max(axis=1)
-        self.__summary_df['mutations'] = \
-            self.__mutations_df.lookup(self.__mutations_df.index,
-                                       self.__summary_df['matched_ice_id'])
-        self.__summary_df['indels'] = \
-            self.__indels_df.lookup(self.__indels_df.index,
-                                    self.__summary_df['matched_ice_id'])
-        self.__summary_df['deletions'] = \
-            self.__deletions_df.lookup(self.__deletions_df.index,
-                                       self.__summary_df['matched_ice_id'])
-        self.__summary_df['max_depth'] = \
-            self.__depths_df.lookup(self.__depths_df.index,
-                                    self.__summary_df['matched_ice_id'])
-
-        # Remove spurious unidentified entries:
-        self.__summary_df = \
-            self.__summary_df[self.__summary_df['identity'] != 0]
+        write_summary(self.__summary_df, self.__identity_df,
+                      self.__mutations_df, self.__indels_df,
+                      self.__deletions_df, self.__depths_df)
 
         self.__summary_df.to_csv(os.path.join(self.__dir_name, 'summary.csv'))
 
@@ -155,8 +139,10 @@ class VcfAnalyser(object):
 
 def _init_df(parent_df, columns):
     '''Initialise a results dataframe.'''
-    return pd.concat([pd.DataFrame(columns=columns), parent_df.copy()],
-                     sort=False)
+    df = pd.concat([pd.DataFrame(columns=columns), parent_df.copy()],
+                   sort=False)
+    df.index = parent_df.index
+    return df
 
 
 def _vcf_to_df(vcf_filename):
@@ -229,7 +215,33 @@ def _set_value(df, val, col_id, *row_ids):
     df[col_id].loc[row_ids[0], row_ids[1]] = val
 
 
-def main(args):
+def write_summary(summary_df, identity_df, mutations_df, indels_df,
+                  deletions_df, depths_df):
+    '''Write summary output file.'''
+    identity_df.fillna(0, inplace=True)
+    numerical_df = identity_df.drop(
+        ['plate_idx'], axis=1).select_dtypes(include=[np.float])
+    summary_df['matched_ice_id'] = numerical_df.idxmax(axis=1)
+    summary_df['identity'] = numerical_df.max(axis=1)
+    summary_df['mutations'] = \
+        mutations_df.lookup(mutations_df.index,
+                            summary_df['matched_ice_id'])
+    summary_df['indels'] = \
+        indels_df.lookup(indels_df.index,
+                         summary_df['matched_ice_id'])
+    summary_df['deletions'] = \
+        deletions_df.lookup(deletions_df.index,
+                            summary_df['matched_ice_id'])
+    summary_df['max_depth'] = \
+        depths_df.lookup(depths_df.index,
+                         summary_df['matched_ice_id'])
+
+    # Remove spurious unidentified entries:
+    summary_df = \
+        summary_df[summary_df['identity'] != 0]
+
+
+def analyse(args):
     '''main method.'''
     analyser = VcfAnalyser(args[4:], args[0], float(args[3]), args[2])
 
@@ -245,4 +257,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    analyse(sys.argv[1:])

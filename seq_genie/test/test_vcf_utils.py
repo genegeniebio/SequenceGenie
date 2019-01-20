@@ -25,7 +25,7 @@ class Test(unittest.TestCase):
         mutations_df = pd.read_csv(os.path.join(directory, 'mutations.csv'))
         indels_df = pd.read_csv(os.path.join(directory, 'indels.csv'))
         deletions_df = pd.read_csv(os.path.join(directory, 'deletions.csv'))
-        depths_df = pd.read_csv(os.path.join(directory, 'depths.csv'))
+        depths_df = pd.read_csv(os.path.join(directory, 'max_depths.csv'))
 
         vcf_utils.write_summary(summary_df,
                                 identity_df,
@@ -35,6 +35,8 @@ class Test(unittest.TestCase):
                                 depths_df)
 
         summary_df.to_csv(os.path.join(directory, 'summary_out.csv'))
+
+        self.assertTrue(summary_df['identity'].between(0, 1).all())
 
 
 if __name__ == "__main__":
