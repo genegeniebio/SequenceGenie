@@ -9,32 +9,13 @@ All rights reserved.
 # pylint: disable=no-name-in-module
 # pylint: disable=superfluous-parens
 import os
-from os.path import splitext
+
 import subprocess
 import tempfile
 
 from Bio import Seq, SeqIO, SeqRecord
 from pysam import Samfile, VariantFile
 from synbiochem.utils import io_utils
-
-
-def get_reads(reads_filename, min_length=0, max_reads=float('inf')):
-    '''Gets reads.'''
-    reads = []
-    total_reads = 0
-
-    if os.path.isdir(reads_filename):
-        for dirpath, _, filenames in os.walk(os.path.abspath(reads_filename)):
-            for filename in filenames:
-                filename = os.path.join(dirpath, filename)
-                total_reads += _get_reads(filename, min_length, reads)
-
-                if total_reads > max_reads:
-                    break
-    else:
-        total_reads += _get_reads(reads_filename, min_length, reads)
-
-    return reads, total_reads
 
 
 def index(filename):
@@ -147,24 +128,6 @@ def get_dir(parent_dir, barcodes, ice_id=None):
         os.makedirs(dir_name)
 
     return dir_name
-
-
-def _get_reads(filename, min_length, reads):
-    '''Gets reads.'''
-    _, ext = splitext(filename)
-
-    try:
-        with open(filename, 'rU') as fle:
-            all_reads = [record for record in SeqIO.parse(fle, ext[1:])]
-
-            reads.extend([record for record in all_reads
-                          if len(record.seq) > min_length])
-
-            print('Reading: %s' % filename)
-            return len(all_reads)
-    except (IOError, ValueError) as err:
-        print(err)
-        return 0
 
 
 def _replace_indels(sam_filename, templ_seq):

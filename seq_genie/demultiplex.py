@@ -11,40 +11,35 @@ All rights reserved.
 # pylint: disable=wrong-import-order
 from collections import defaultdict, OrderedDict
 
-try:
-    from itertools import zip_longest as zip_longest
-except ImportError:
-    from itertools import izip_longest as zip_longest
-
 from Bio import Seq
 
 import multiprocessing as mp
 import numpy as np
+from seq_genie import reads
 
 
-def demultiplex(barcodes, sequences, tolerance, search_len=48, num_threads=0,
-                batch_size=256):
+def demultiplex(barcodes, in_dir, min_length, max_read_files, tolerance,
+                num_threads, search_len=48):
     '''Bin sequences according to barcodes.'''
-    if barcodes:
-        max_barcode_len = max([len(barcode)
-                               for pair in barcodes
-                               for barcode in pair])
+    max_barcode_len = max([len(barcode)
+                           for pair in barcodes
+                           for barcode in pair])
 
-        fomatted_barcodes = _format_barcodes(barcodes)
+    pool = mp.Pool(processes=num_threads)
 
-        if num_threads:
-            barcode_seqs = _demultiplex_multi(num_threads, max_barcode_len,
-                                              search_len, fomatted_barcodes,
-                                              tolerance, sequences,
-                                              batch_size)
-        else:
-            barcode_seqs = _demultiplex_single(max_barcode_len, search_len,
-                                               fomatted_barcodes, tolerance,
-                                               sequences, batch_size)
-    else:
-        barcode_seqs = {'undefined': sequences}
+    results = [pool.apply_async(_bin_seqs, args=(fle,
+                                                 min_length,
+                                                 max_barcode_len,
+                                                 search_len,
+                                                 _format_barcodes(barcodes),
+                                                 tolerance,
+                                                 idx,
+                                                 max_read_files))
+               for idx, fle in enumerate(reads.get_filenames(in_dir,
+                                                             max_read_files))]
 
-    return barcode_seqs
+    return _consolodate_bc_seqs([res.get()
+                                 for res in results])
 
 
 def _format_barcodes(barcodes):
@@ -61,52 +56,12 @@ def _format_barcodes(barcodes):
     return for_brcds, rev_brcds
 
 
-def _demultiplex_multi(num_threads, max_barcode_len, search_len,
-                       fomatted_barcodes, tolerance, sequences,
-                       batch_size):
-    '''Demultiplex multi-processor.'''
-    pool = mp.Pool(processes=num_threads)
-
-    results = [pool.apply_async(_bin_seqs, args=(seqs,
-                                                 max_barcode_len,
-                                                 search_len,
-                                                 fomatted_barcodes,
-                                                 tolerance,
-                                                 idx,
-                                                 len(sequences),
-                                                 batch_size))
-               for idx, seqs in enumerate(
-        _get_batch(sequences, batch_size))]
-
-    return _consolodate_bc_seqs([res.get()
-                                 for res in results])
-
-
-def _demultiplex_single(max_barcode_len, search_len,
-                        fomatted_barcodes, tolerance, sequences,
-                        batch_size):
-    '''Demultiplex single-processor.'''
+def _bin_seqs(reads_filename, min_length, max_barcode_len, search_len,
+              barcodes, tolerance, idx, max_read_files):
+    '''Bin a batch of sequences.'''
     barcode_seqs = defaultdict(list)
 
-    for idx, seqs in enumerate(_get_batch(sequences, batch_size)):
-        _bin_seqs(seqs,
-                  max_barcode_len,
-                  search_len,
-                  fomatted_barcodes,
-                  tolerance,
-                  idx,
-                  len(sequences),
-                  batch_size,
-                  barcode_seqs)
-
-    return barcode_seqs
-
-
-def _bin_seqs(seqs, max_barcode_len, search_len, barcodes, tolerance, idx,
-              num_seqs, batch_size, barcode_seqs=None):
-    '''Bin a batch of sequences.'''
-    if barcode_seqs is None:
-        barcode_seqs = defaultdict(list)
+    seqs = reads.get_reads(reads_filename, min_length)
 
     for seq in seqs:
         if seq:
@@ -117,7 +72,7 @@ def _bin_seqs(seqs, max_barcode_len, search_len, barcodes, tolerance, idx,
                               barcode_seqs, selected_barcodes, tolerance):
                     break
 
-    _report_barcodes(idx, num_seqs, batch_size, barcode_seqs)
+    _report_barcodes(idx, max_read_files, len(seqs), barcode_seqs)
 
     return barcode_seqs
 
@@ -136,10 +91,6 @@ def _check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
 
         if selected_barcodes[0] and selected_barcodes[1]:
             barcode_seqs[tuple(selected_barcodes)].append(seq)
-
-            # print str(mp.current_process()) + '\t' + \
-            #    str(sum([len(lst) for lst in barcode_seqs.values()]))
-
             return True
 
     return False
@@ -187,26 +138,21 @@ def _consolodate_bc_seqs(all_barcode_seqs):
     return barcode_seqs
 
 
-def _report_barcodes(idx, num_seqs, batch_size, barcode_seqs):
+def _report_barcodes(idx, max_read_files, num_seqs, barcode_seqs):
     '''Report barcodes.'''
     seq_lens = [len(seq) for seq in barcode_seqs.values()]
 
     if seq_lens:
-        vals = ((idx + 1) * batch_size,
-                num_seqs,
+        vals = ((idx + 1),
+                max_read_files,
                 sum(seq_lens),
+                num_seqs,
                 min(seq_lens),
                 max(seq_lens),
                 np.mean(seq_lens),
                 np.median(seq_lens))
 
-        s = 'Seqs: %d/%d\tMatched: %d\tRange: %d-%d\tMean: %.1f\tMedian: %d'
+        s = 'Seqs: %d/%d\tMatched: %d/%d\tRange: %d-%d\tMean: %.1f\tMedian: %d'
         print(s % vals)
     else:
-        print('Seqs: %d/%d' % ((idx + 1) * batch_size, num_seqs))
-
-
-def _get_batch(iterable, batch_size=64, fillvalue=None):
-    '''Get a batch.'''
-    args = [iter(iterable)] * batch_size
-    return zip_longest(*args, fillvalue=fillvalue)
+        print('Seqs: %d' % (idx + 1))

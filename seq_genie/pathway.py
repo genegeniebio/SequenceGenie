@@ -10,6 +10,7 @@ All rights reserved.
 # pylint: disable=superfluous-parens
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
+# pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-locals
 # pylint: disable=unused-argument
 # pylint: disable=wrong-import-order
@@ -33,7 +34,7 @@ class PathwayAligner(object):
 
     def __init__(self, out_dir, in_dir,
                  ice_url, ice_username, ice_password,
-                 for_primer, rev_primer, min_length, max_reads,
+                 for_primer, rev_primer, min_length, max_read_files,
                  dp_filter=0.25):
         # Initialise project directory:
         self.__dir_name = os.path.join(out_dir, str(uuid.uuid4()))
@@ -46,14 +47,9 @@ class PathwayAligner(object):
                            for_primer, rev_primer,
                            self.__dir_name)
 
-        # Get reads:
-        self.__reads, total_reads = \
-            utils.get_reads(in_dir, min_length=min_length,
-                            max_reads=max_reads)
-
-        print('Extracted %d/%d (%.1f%%) filtered reads'
-              % (len(self.__reads), total_reads,
-                 len(self.__reads) / total_reads * 100.0))
+        self.__in_dir = in_dir
+        self.__min_length = min_length
+        self.__max_read_files = max_read_files
 
         # Initialise vcf analyser:
         self.__barcodes_df = \
@@ -74,14 +70,14 @@ class PathwayAligner(object):
         for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
 
-        barcode_reads = demultiplex.demultiplex(self.__barcodes, self.__reads,
+        barcode_reads = demultiplex.demultiplex(self.__barcodes,
+                                                self.__in_dir,
+                                                self.__min_length,
+                                                self.__max_read_files,
                                                 tolerance=tolerance,
                                                 num_threads=num_threads)
 
-        print('Extracted %d/%d (%.1f%%) barcoded reads'
-              % (len(barcode_reads),
-                 len(self.__reads),
-                 len(barcode_reads) / len(self.__reads) * 100.0))
+        print('Extracted %d barcoded reads' % len(barcode_reads))
 
         if num_threads:
             thread_pool = thread_utils.ThreadPool(num_threads)
@@ -223,7 +219,7 @@ def main(args):
 
     aligner = PathwayAligner(*args[:-4],
                              min_length=int(args[-4]),
-                             max_reads=int(args[-3]))
+                             max_read_files=int(args[-3]))
 
     aligner.score_alignments(int(args[-2]), num_threads)
 
