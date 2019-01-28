@@ -6,7 +6,6 @@ All rights reserved.
 @author: neilswainston
 '''
 # pylint: disable=no-member
-# pylint: disable=no-name-in-module
 # pylint: disable=superfluous-parens
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
@@ -21,7 +20,6 @@ import os
 import sys
 import uuid
 
-from Bio import SeqIO
 import pysam
 from synbiochem.utils import ice_utils, seq_utils, thread_utils
 
@@ -74,44 +72,22 @@ class PathwayAligner(object):
                                                 self.__in_dir,
                                                 self.__min_length,
                                                 self.__max_read_files,
+                                                self.__dir_name,
                                                 tolerance=tolerance,
                                                 num_threads=num_threads)
 
-        print('Extracted %d barcoded reads' % len(barcode_reads))
+        thread_pool = thread_utils.ThreadPool(num_threads)
 
-        if num_threads:
-            thread_pool = thread_utils.ThreadPool(num_threads)
-
-            for barcodes, reads in barcode_reads.iteritems():
-                reads_filename = \
-                    os.path.join(utils.get_dir(self.__dir_name, barcodes),
-                                 'reads.fasta')
-
-                SeqIO.write(reads, reads_filename, 'fasta')
-
-                thread_pool.add_task(_score_alignment,
-                                     self.__dir_name,
-                                     barcodes,
-                                     reads_filename,
-                                     self.__get_ice_files(barcodes),
-                                     self.__pcr_offsets,
-                                     self.__vcf_analyser)
-
-            thread_pool.wait_completion()
-        else:
-            for barcodes, reads in barcode_reads.iteritems():
-                reads_filename = \
-                    os.path.join(utils.get_dir(self.__dir_name, barcodes),
-                                 'reads.fasta')
-
-                SeqIO.write(reads, reads_filename, 'fasta')
-
-                _score_alignment(self.__dir_name,
+        for barcodes, reads_filename in barcode_reads.iteritems():
+            thread_pool.add_task(_score_alignment,
+                                 self.__dir_name,
                                  barcodes,
                                  reads_filename,
                                  self.__get_ice_files(barcodes),
                                  self.__pcr_offsets,
                                  self.__vcf_analyser)
+
+        thread_pool.wait_completion()
 
         # Update summary:
         self.__vcf_analyser.write_summary()

@@ -9,37 +9,79 @@ All rights reserved.
 # pylint: disable=superfluous-parens
 # pylint: disable=too-many-arguments
 # pylint: disable=wrong-import-order
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict
+import os.path
 
-from Bio import Seq
+from Bio import Seq, SeqIO
 
 import multiprocessing as mp
-import numpy as np
 from seq_genie import reads
 
 
-def demultiplex(barcodes, in_dir, min_length, max_read_files, tolerance,
-                num_threads, search_len=48):
+class ReadWriter(object):
+    '''Thread-safe class to write demultiplexed reads to Fasta.'''
+
+    def __init__(self, queue, parent_dir):
+        self.__queue = queue
+        self.__parent_dir = parent_dir
+        self._closed = False
+        self.__files = {}
+
+    def run(self):
+        '''Run.'''
+        while not self._closed:
+            task = self.__queue.get()
+            self.__write(task)
+            self.__queue.task_done()
+
+    def get_files(self):
+        '''Get files.'''
+        return self.__files
+
+    def close(self):
+        '''Close.'''
+        for fle in self.__files.values():
+            fle.close()
+
+        self._closed = True
+
+    def __write(self, task):
+        barcodes = task[0]
+
+        if barcodes not in self.__files:
+            dir_name = os.path.join(self.__parent_dir, '_'.join(barcodes))
+            filename = os.path.join(dir_name, 'reads.fasta')
+            os.makedirs(dir_name)
+            self.__files[barcodes] = open(filename, 'w')
+
+        SeqIO.write(task[1], self.__files[barcodes], 'fasta')
+
+
+def demultiplex(barcodes, in_dir, min_length, max_read_files, out_dir,
+                tolerance, num_threads, search_len=48):
     '''Bin sequences according to barcodes.'''
     max_barcode_len = max([len(barcode)
                            for pair in barcodes
                            for barcode in pair])
 
     pool = mp.Pool(processes=num_threads)
+    write_queue = mp.Manager().Queue()
+    read_writer = ReadWriter(write_queue, out_dir)
 
-    results = [pool.apply_async(_bin_seqs, args=(fle,
-                                                 min_length,
-                                                 max_barcode_len,
-                                                 search_len,
-                                                 _format_barcodes(barcodes),
-                                                 tolerance,
-                                                 idx,
-                                                 max_read_files))
-               for idx, fle in enumerate(reads.get_filenames(in_dir,
-                                                             max_read_files))]
+    for idx, fle in enumerate(reads.get_filenames(in_dir, max_read_files)):
+        pool.apply_async(_bin_seqs, args=(fle,
+                                          min_length,
+                                          max_barcode_len,
+                                          search_len,
+                                          _format_barcodes(barcodes),
+                                          tolerance,
+                                          idx,
+                                          max_read_files,
+                                          write_queue)).get()
 
-    return _consolodate_bc_seqs([res.get()
-                                 for res in results])
+    read_writer.run()
+    read_writer.close()
+    return read_writer.get_files()
 
 
 def _format_barcodes(barcodes):
@@ -57,9 +99,9 @@ def _format_barcodes(barcodes):
 
 
 def _bin_seqs(reads_filename, min_length, max_barcode_len, search_len,
-              barcodes, tolerance, idx, max_read_files):
+              barcodes, tolerance, idx, max_read_files, write_queue):
     '''Bin a batch of sequences.'''
-    barcode_seqs = defaultdict(list)
+    barcode_seqs = 0
 
     seqs = reads.get_reads(reads_filename, min_length)
 
@@ -69,16 +111,17 @@ def _bin_seqs(reads_filename, min_length, max_barcode_len, search_len,
                 selected_barcodes = [None, None]
 
                 if _check_seq(seq, max_barcode_len, search_len, pairs,
-                              barcode_seqs, selected_barcodes, tolerance):
+                              selected_barcodes, tolerance, write_queue):
+                    barcode_seqs += 1
                     break
 
     _report_barcodes(idx, max_read_files, len(seqs), barcode_seqs)
 
-    return barcode_seqs
+    return None
 
 
-def _check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
-               selected_barcodes, tolerance):
+def _check_seq(seq, max_barcode_len, search_len, pairs, selected_barcodes,
+               tolerance, write_queue):
     '''Check sequence against barcode sequences.'''
     seq_len = min(max_barcode_len + search_len, len(seq))
     seq_start = list(seq.seq[:seq_len])
@@ -90,7 +133,7 @@ def _check_seq(seq, max_barcode_len, search_len, pairs, barcode_seqs,
                     selected_barcodes, tolerance)
 
         if selected_barcodes[0] and selected_barcodes[1]:
-            barcode_seqs[tuple(selected_barcodes)].append(seq)
+            write_queue.put([tuple(selected_barcodes), seq])
             return True
 
     return False
@@ -127,32 +170,12 @@ def _check_barcode(orig, barcode, seq, seq_len, tolerance):
     return None
 
 
-def _consolodate_bc_seqs(all_barcode_seqs):
-    '''Consolidate all barcode_seqs.'''
-    barcode_seqs = defaultdict(list)
-
-    for dct in all_barcode_seqs:
-        for k, v in dct.items():
-            barcode_seqs[k].extend(v)
-
-    return barcode_seqs
-
-
 def _report_barcodes(idx, max_read_files, num_seqs, barcode_seqs):
     '''Report barcodes.'''
-    seq_lens = [len(seq) for seq in barcode_seqs.values()]
-
-    if seq_lens:
-        vals = ((idx + 1),
-                max_read_files,
-                sum(seq_lens),
-                num_seqs,
-                min(seq_lens),
-                max(seq_lens),
-                np.mean(seq_lens),
-                np.median(seq_lens))
-
-        s = 'Seqs: %d/%d\tMatched: %d/%d\tRange: %d-%d\tMean: %.1f\tMedian: %d'
-        print(s % vals)
+    if barcode_seqs:
+        print('Seqs: %d/%d\tMatched: %d/%d' % ((idx + 1),
+                                               max_read_files,
+                                               barcode_seqs,
+                                               num_seqs))
     else:
         print('Seqs: %d' % (idx + 1))
