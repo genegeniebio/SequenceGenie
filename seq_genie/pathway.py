@@ -20,11 +20,10 @@ import sys
 import uuid
 
 import pysam
-from synbiochem.utils import ice_utils, seq_utils
 
 import multiprocessing as mp
 import pandas as pd
-from seq_genie import demultiplex, utils, vcf_utils
+from seq_genie import demultiplex, ice, results, utils, vcf_utils
 
 
 class PathwayAligner(object):
@@ -35,35 +34,29 @@ class PathwayAligner(object):
                  for_primer, rev_primer, min_length, max_read_files,
                  dp_filter=0.25):
         # Initialise project directory:
-        self.__dir_name = os.path.join(out_dir, str(uuid.uuid4()))
-        os.makedirs(self.__dir_name)
+        self.__out_dir = os.path.join(out_dir, str(uuid.uuid4()))
+        os.makedirs(self.__out_dir)
 
         # Get pathway sequences from ICE:
         self.__ice_files, self.__pcr_offsets, _ = \
-            _get_ice_files(ice_url, ice_username, ice_password,
-                           os.path.join(in_dir, 'ice_ids.txt'),
-                           for_primer, rev_primer,
-                           self.__dir_name)
+            ice.get_ice_files(ice_url, ice_username, ice_password,
+                              os.path.join(in_dir, 'ice_ids.txt'),
+                              for_primer, rev_primer,
+                              self.__out_dir)
 
         self.__in_dir = in_dir
         self.__min_length = min_length
         self.__max_read_files = max_read_files
+        self.__dp_filter = dp_filter
 
-        # Initialise vcf analyser:
-        self.__barcodes_df = \
-            pd.read_csv(os.path.join(in_dir, 'barcodes.csv'))
-
+        self.__barcodes_df = pd.read_csv(os.path.join(in_dir, 'barcodes.csv'))
         self.__barcodes_df.fillna('', inplace=True)
 
-        self.__vcf_analyser = \
-            vcf_utils.VcfAnalyser(sorted(self.__ice_files.keys()),
-                                  self.__barcodes_df,
-                                  dp_filter,
-                                  self.__dir_name)
+        self.__barcodes = \
+            [tuple(pair)
+             for pair in self.__barcodes_df[['forward', 'reverse']].values]
 
-        self.__barcodes = self.__vcf_analyser.get_src_ids()
-
-    def score_alignments(self, tolerance, num_threads=0):
+    def score_alignments(self, tolerance, num_threads):
         '''Score alignments.'''
         for templ_filename, _ in self.__ice_files.values():
             utils.index(templ_filename)
@@ -72,33 +65,38 @@ class PathwayAligner(object):
                                                 self.__in_dir,
                                                 self.__min_length,
                                                 self.__max_read_files,
-                                                self.__dir_name,
+                                                self.__out_dir,
                                                 tolerance=tolerance,
                                                 num_threads=num_threads)
 
         pool = mp.Pool(processes=num_threads)
+        write_queue = mp.Manager().Queue()
+        results_thread = results.ResultsThread(sorted(self.__ice_files.keys()),
+                                               self.__barcodes_df,
+                                               write_queue)
+        results_thread.start()
 
-        results = [pool.apply_async(_score_alignment,
-                                    args=(self.__dir_name,
-                                          barcodes,
-                                          reads_filename,
-                                          self.__get_ice_files(barcodes),
-                                          self.__pcr_offsets,
-                                          self.__vcf_analyser))
-                   for barcodes, reads_filename in barcode_reads.iteritems()]
+        rslts = [pool.apply_async(_score_alignment,
+                                  args=(self.__out_dir,
+                                        barcodes,
+                                        reads_filename,
+                                        self.__get_ice_files(barcodes),
+                                        self.__pcr_offsets,
+                                        self.__dp_filter,
+                                        write_queue))
+                 for barcodes, reads_filename in barcode_reads.iteritems()]
 
-        for res in results:
+        for res in rslts:
             res.get()
 
         # Update summary:
-        self.__vcf_analyser.write_summary()
+        results_thread.close()
+        results_thread.write(self.__out_dir)
 
     def __get_ice_files(self, barcodes):
         '''Get appropriate ICE files.'''
         try:
-            ice_id = \
-                self._PathwayAligner__barcodes_df.loc[barcodes,
-                                                      'actual_ice_id']
+            ice_id = self.__barcodes_df.loc[barcodes, 'actual_ice_id']
 
             if ice_id:
                 return {ice_id: self.__ice_files[ice_id]}
@@ -107,37 +105,6 @@ class PathwayAligner(object):
             return {}
 
         return self.__ice_files
-
-
-def _get_ice_files(url, username, password, ice_ids_filename,
-                   for_primer, rev_primer, dir_name):
-    '''Get ICE sequences.'''
-    ice_client = ice_utils.ICEClient(url, username, password)
-
-    with open(ice_ids_filename, 'rU') as ice_ids_file:
-        ice_ids = [line.strip() for line in ice_ids_file]
-
-    seqs_offsets = [seq_utils.pcr(ice_client.get_ice_entry(ice_id).get_seq(),
-                                  for_primer, rev_primer)
-                    for ice_id in ice_ids]
-
-    seqs, offsets = zip(*seqs_offsets)
-
-    ice_files = {ice_id:
-                 (seq_utils.write_fasta({ice_id: seq},
-                                        os.path.join(dir_name,
-                                                     ice_id + '.fasta')),
-                  len(seq))
-                 for ice_id, seq in zip(ice_ids, seqs)}
-
-    pcr_offsets = {ice_id: offset for ice_id, offset in zip(ice_ids, offsets)}
-
-    # Get Genbank files for subsequent data analysis:
-    for ice_id in ice_ids:
-        gb_filename = os.path.join(dir_name, ice_id + '.gb')
-        ice_client.get_genbank(ice_id, gb_filename)
-
-    return ice_files, pcr_offsets, [len(seq) for seq in seqs]
 
 
 def _get_barcode_ice(barcode_ice_filename):
@@ -149,21 +116,20 @@ def _get_barcode_ice(barcode_ice_filename):
     return barcode_ice.set_index('barcode')['ice_id'].to_dict()
 
 
-def _score_alignment(dir_name, barcodes, reads_filename,
-                     ice_files, pcr_offsets,
-                     vcf_analyser):
+def _score_alignment(dir_name, barcodes, reads_filename, ice_files,
+                     pcr_offsets, dp_filter, write_queue):
     '''Score an alignment.'''
     for ice_id, (templ_filename, _) in ice_files.iteritems():
         _score_barcodes_ice(templ_filename, dir_name, barcodes,
                             ice_id, pcr_offsets[ice_id], reads_filename,
-                            vcf_analyser)
+                            dp_filter, write_queue)
 
         print('Scored: %s against %s' % (reads_filename, ice_id))
 
 
 def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
                         ice_id, pcr_offset, reads_filename,
-                        vcf_analyser):
+                        dp_filter, write_queue):
     '''Score barcodes ice pair.'''
     barcode_dir_name = utils.get_dir(dir_name, barcodes, ice_id)
     sam_filename = os.path.join(barcode_dir_name, 'alignment.sam')
@@ -181,7 +147,7 @@ def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
     vcf_filename = utils.get_vcf(bam_filename, templ_pcr_filename,
                                  pcr_offset=0)
 
-    vcf_analyser.analyse(vcf_filename, ice_id, barcodes)
+    vcf_utils.analyse(vcf_filename, ice_id, barcodes, dp_filter, write_queue)
 
 
 def main(args):
