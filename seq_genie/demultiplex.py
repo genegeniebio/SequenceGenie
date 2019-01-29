@@ -8,9 +8,11 @@ All rights reserved.
 # pylint: disable=invalid-name
 # pylint: disable=superfluous-parens
 # pylint: disable=too-many-arguments
+# pylint: disable=too-many-locals
 # pylint: disable=wrong-import-order
 from collections import OrderedDict
 import os.path
+from threading import Thread
 
 from Bio import Seq, SeqIO
 
@@ -18,7 +20,7 @@ import multiprocessing as mp
 from seq_genie import reads
 
 
-class ReadWriter(object):
+class ReadThread(Thread):
     '''Thread-safe class to write demultiplexed reads to Fasta.'''
 
     def __init__(self, queue, parent_dir):
@@ -26,6 +28,7 @@ class ReadWriter(object):
         self.__parent_dir = parent_dir
         self._closed = False
         self.__files = {}
+        Thread.__init__(self)
 
     def run(self):
         '''Run.'''
@@ -66,22 +69,25 @@ def demultiplex(barcodes, in_dir, min_length, max_read_files, out_dir,
 
     pool = mp.Pool(processes=num_threads)
     write_queue = mp.Manager().Queue()
-    read_writer = ReadWriter(write_queue, out_dir)
+    read_thread = ReadThread(write_queue, out_dir)
+    read_thread.start()
 
-    for idx, fle in enumerate(reads.get_filenames(in_dir, max_read_files)):
-        pool.apply_async(_bin_seqs, args=(fle,
-                                          min_length,
-                                          max_barcode_len,
-                                          search_len,
-                                          _format_barcodes(barcodes),
-                                          tolerance,
-                                          idx,
-                                          max_read_files,
-                                          write_queue)).get()
+    results = [pool.apply_async(_bin_seqs, args=(fle,
+                                                 min_length,
+                                                 max_barcode_len,
+                                                 search_len,
+                                                 _format_barcodes(barcodes),
+                                                 tolerance,
+                                                 idx,
+                                                 max_read_files,
+                                                 write_queue))
+               for idx, fle in enumerate(reads.get_filenames(in_dir,
+                                                             max_read_files))]
+    for res in results:
+        res.get()
 
-    read_writer.run()
-    read_writer.close()
-    return read_writer.get_files()
+    read_thread.close()
+    return read_thread.get_files()
 
 
 def _format_barcodes(barcodes):
