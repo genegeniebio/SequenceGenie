@@ -15,14 +15,14 @@ All rights reserved.
 # pylint: disable=wrong-import-order
 from __future__ import division
 
-import multiprocessing
 import os
 import sys
 import uuid
 
 import pysam
-from synbiochem.utils import ice_utils, seq_utils, thread_utils
+from synbiochem.utils import ice_utils, seq_utils
 
+import multiprocessing as mp
 import pandas as pd
 from seq_genie import demultiplex, utils, vcf_utils
 
@@ -76,18 +76,19 @@ class PathwayAligner(object):
                                                 tolerance=tolerance,
                                                 num_threads=num_threads)
 
-        thread_pool = thread_utils.ThreadPool(num_threads)
+        pool = mp.Pool(processes=num_threads)
 
-        for barcodes, reads_filename in barcode_reads.iteritems():
-            thread_pool.add_task(_score_alignment,
-                                 self.__dir_name,
-                                 barcodes,
-                                 reads_filename,
-                                 self.__get_ice_files(barcodes),
-                                 self.__pcr_offsets,
-                                 self.__vcf_analyser)
+        results = [pool.apply_async(_score_alignment,
+                                    args=(self.__dir_name,
+                                          barcodes,
+                                          reads_filename,
+                                          self.__get_ice_files(barcodes),
+                                          self.__pcr_offsets,
+                                          self.__vcf_analyser))
+                   for barcodes, reads_filename in barcode_reads.iteritems()]
 
-        thread_pool.wait_completion()
+        for res in results:
+            res.get()
 
         # Update summary:
         self.__vcf_analyser.write_summary()
@@ -157,6 +158,8 @@ def _score_alignment(dir_name, barcodes, reads_filename,
                             ice_id, pcr_offsets[ice_id], reads_filename,
                             vcf_analyser)
 
+        print('Scored: %s against %s' % (reads_filename, ice_id))
+
 
 def _score_barcodes_ice(templ_pcr_filename, dir_name, barcodes,
                         ice_id, pcr_offset, reads_filename,
@@ -186,10 +189,7 @@ def main(args):
     try:
         num_threads = int(args[-1])
     except ValueError:
-        if args[-1] == 'True':
-            num_threads = multiprocessing.cpu_count()
-        else:
-            num_threads = 0
+        num_threads = mp.cpu_count()
 
     print('Running pathway with %d threads' % num_threads)
 

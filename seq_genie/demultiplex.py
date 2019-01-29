@@ -26,27 +26,28 @@ class ReadThread(Thread):
     def __init__(self, queue, parent_dir):
         self.__queue = queue
         self.__parent_dir = parent_dir
-        self._closed = False
+        self.__closed = False
         self.__files = {}
         Thread.__init__(self)
 
     def run(self):
         '''Run.'''
-        while not self._closed:
+        while not self.__closed:
             task = self.__queue.get()
             self.__write(task)
             self.__queue.task_done()
 
-    def get_files(self):
-        '''Get files.'''
-        return self.__files
+    def get_filenames(self):
+        '''Get filenames.'''
+        return {barcodes: fle.name
+                for barcodes, fle in self.__files.iteritems()}
 
     def close(self):
         '''Close.'''
         for fle in self.__files.values():
             fle.close()
 
-        self._closed = True
+        self.__closed = True
 
     def __write(self, task):
         barcodes = task[0]
@@ -87,7 +88,7 @@ def demultiplex(barcodes, in_dir, min_length, max_read_files, out_dir,
         res.get()
 
     read_thread.close()
-    return read_thread.get_files()
+    return read_thread.get_filenames()
 
 
 def _format_barcodes(barcodes):
