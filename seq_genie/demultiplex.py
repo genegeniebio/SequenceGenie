@@ -76,6 +76,8 @@ def demultiplex(barcodes, in_dir, min_length, max_read_files, out_dir,
     read_thread = ReadThread(write_queue, out_dir)
     read_thread.start()
 
+    filenames = reads.get_filenames(in_dir, max_read_files)
+
     results = [pool.apply_async(_bin_seqs, args=(fle,
                                                  min_length,
                                                  max_barcode_len,
@@ -83,10 +85,10 @@ def demultiplex(barcodes, in_dir, min_length, max_read_files, out_dir,
                                                  _format_barcodes(barcodes),
                                                  tolerance,
                                                  idx,
-                                                 max_read_files,
+                                                 len(filenames),
                                                  write_queue))
-               for idx, fle in enumerate(reads.get_filenames(in_dir,
-                                                             max_read_files))]
+               for idx, fle in enumerate(filenames)]
+
     for res in results:
         res.get()
 
@@ -109,7 +111,7 @@ def _format_barcodes(barcodes):
 
 
 def _bin_seqs(reads_filename, min_length, max_barcode_len, search_len,
-              barcodes, tolerance, idx, max_read_files, write_queue):
+              barcodes, tolerance, idx, num_read_files, write_queue):
     '''Bin a batch of sequences.'''
     barcode_seqs = 0
 
@@ -125,7 +127,7 @@ def _bin_seqs(reads_filename, min_length, max_barcode_len, search_len,
                     barcode_seqs += 1
                     break
 
-    _report_barcodes(idx, max_read_files, len(seqs), barcode_seqs)
+    _report_barcodes(idx, num_read_files, len(seqs), barcode_seqs)
 
     return None
 
@@ -180,12 +182,12 @@ def _check_barcode(orig, barcode, seq, seq_len, tolerance):
     return None
 
 
-def _report_barcodes(idx, max_read_files, num_seqs, barcode_seqs):
+def _report_barcodes(idx, num_read_files, num_seqs, barcode_seqs):
     '''Report barcodes.'''
     if barcode_seqs:
         print('Seqs: %d/%d\tMatched: %d/%d' % ((idx + 1),
-                                               max_read_files,
+                                               num_read_files,
                                                barcode_seqs,
                                                num_seqs))
     else:
-        print('Seqs: %d' % (idx + 1))
+        print('Seqs: %d/%d' % ((idx + 1), num_read_files))
