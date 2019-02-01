@@ -26,14 +26,17 @@ class ReadThread(Thread):
     def __init__(self, queue, parent_dir):
         self.__queue = queue
         self.__parent_dir = parent_dir
-        self.__closed = False
         self.__files = {}
         Thread.__init__(self)
 
     def run(self):
         '''Run.'''
-        while not self.__closed:
+        while True:
             task = self.__queue.get()
+
+            if task is None:
+                break
+
             self.__write(task)
             self.__queue.task_done()
 
@@ -47,7 +50,7 @@ class ReadThread(Thread):
         for fle in self.__files.values():
             fle.close()
 
-        self.__closed = True
+        self.__queue.put(None)
 
     def __write(self, task):
         barcodes = task[0]

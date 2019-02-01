@@ -31,8 +31,12 @@ class ResultsThread(Thread):
 
     def run(self):
         '''Run.'''
-        while not self.__closed:
+        while True:
             task = self.__queue.get()
+
+            if task is None:
+                break
+
             self.__update_df(task)
             self.__queue.task_done()
 
@@ -45,7 +49,7 @@ class ResultsThread(Thread):
 
     def close(self):
         '''Close.'''
-        self.__closed = True
+        self.__queue.put(None)
 
     def __init_df(self, columns):
         '''Initialise a results dataframe.'''
@@ -79,3 +83,7 @@ class ResultsThread(Thread):
         # Remove spurious unidentified entries:
         self.__dfs['summary'] = \
             self.__dfs['summary'][self.__dfs['summary']['identity'] != 0]
+
+        # Sort:
+        self.__dfs['summary'].sort_values('identity', ascending=False,
+                                          inplace=True)
