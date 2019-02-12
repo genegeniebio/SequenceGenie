@@ -185,9 +185,9 @@ def _check_barcode(orig, barcode, seq, seq_len, tolerance):
 def _report_barcodes(idx, num_read_files, num_seqs, barcode_seqs):
     '''Report barcodes.'''
     if barcode_seqs:
-        print('Seqs: %d/%d\tMatched: %d/%d' % ((idx + 1),
-                                               num_read_files,
-                                               barcode_seqs,
-                                               num_seqs))
+        print('Files: %d/%d\tMatched: %d/%d' % ((idx + 1),
+                                                num_read_files,
+                                                barcode_seqs,
+                                                num_seqs))
     else:
-        print('Seqs: %d/%d' % ((idx + 1), num_read_files))
+        print('Files: %d/%d' % ((idx + 1), num_read_files))
