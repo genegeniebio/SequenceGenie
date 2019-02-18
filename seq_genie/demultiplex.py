@@ -17,6 +17,7 @@ from threading import Thread
 from Bio import Seq, SeqIO
 
 import multiprocessing as mp
+import pandas as pd
 from seq_genie import reads
 
 
@@ -40,16 +41,16 @@ class ReadThread(Thread):
             self.__write(task)
             self.__queue.task_done()
 
-    def get_filenames(self):
-        '''Get filenames.'''
-        return {barcodes: fle.name
-                for barcodes, fle in self.__files.iteritems()}
-
-    def close(self):
-        '''Close.'''
         for fle in self.__files.values():
             fle.close()
 
+    def get_filenames(self):
+        '''Get filenames.'''
+        return {barcodes: fle.name
+                for barcodes, fle in self.__files.items()}
+
+    def close(self):
+        '''Close.'''
         self.__queue.put(None)
 
     def __write(self, task):
@@ -58,10 +59,24 @@ class ReadThread(Thread):
         if barcodes not in self.__files:
             dir_name = os.path.join(self.__parent_dir, '_'.join(barcodes))
             filename = os.path.join(dir_name, 'reads.fasta')
-            os.makedirs(dir_name)
+
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+
             self.__files[barcodes] = open(filename, 'w')
 
         SeqIO.write(task[1], self.__files[barcodes], 'fasta')
+
+
+def get_barcodes(filename):
+    '''Get barcodes.'''
+    barcodes_df = pd.read_csv(os.path.join(filename))
+    barcodes_df.fillna('', inplace=True)
+
+    barcodes = \
+        [tuple(pair) for pair in barcodes_df[['forward', 'reverse']].values]
+
+    return barcodes, barcodes_df
 
 
 def demultiplex(barcodes, in_dir, min_length, max_read_files, out_dir,
@@ -92,6 +107,7 @@ def demultiplex(barcodes, in_dir, min_length, max_read_files, out_dir,
     for res in results:
         res.get()
 
+    write_queue.join()
     read_thread.close()
     return read_thread.get_filenames()
 
@@ -140,7 +156,7 @@ def _check_seq(seq, max_barcode_len, search_len, pairs, selected_barcodes,
     seq_end = list(seq.seq[-(seq_len):])
 
     # Check all barcodes:
-    for orig, bc_pair in pairs.iteritems():
+    for orig, bc_pair in pairs.items():
         _check_pair(orig, bc_pair, [seq_start, seq_end], seq_len,
                     selected_barcodes, tolerance)
 
