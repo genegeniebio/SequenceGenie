@@ -49,12 +49,8 @@ class PathwayAligner(object):
         self.__max_read_files = max_read_files
         self.__dp_filter = dp_filter
 
-        self.__barcodes_df = pd.read_csv(os.path.join(in_dir, 'barcodes.csv'))
-        self.__barcodes_df.fillna('', inplace=True)
-
-        self.__barcodes = \
-            [tuple(pair)
-             for pair in self.__barcodes_df[['forward', 'reverse']].values]
+        self.__barcodes, self.__barcodes_df = \
+            demultiplex.get_barcodes(os.path.join(in_dir, 'barcodes.csv'))
 
     def score_alignments(self, tolerance, num_threads):
         '''Score alignments.'''
@@ -84,7 +80,7 @@ class PathwayAligner(object):
                                         self.__pcr_offsets,
                                         self.__dp_filter,
                                         write_queue))
-                 for barcodes, reads_filename in barcode_reads.iteritems()]
+                 for barcodes, reads_filename in barcode_reads.items()]
 
         for res in rslts:
             res.get()
@@ -119,7 +115,7 @@ def _get_barcode_ice(barcode_ice_filename):
 def _score_alignment(dir_name, barcodes, reads_filename, ice_files,
                      pcr_offsets, dp_filter, write_queue):
     '''Score an alignment.'''
-    for ice_id, (templ_filename, _) in ice_files.iteritems():
+    for ice_id, (templ_filename, _) in ice_files.items():
         _score_barcodes_ice(templ_filename, dir_name, barcodes,
                             ice_id, pcr_offsets[ice_id], reads_filename,
                             dp_filter, write_queue)

@@ -5,7 +5,7 @@ All rights reserved.
 
 @author: neilswainston
 '''
-import itertools
+# pylint: disable=invalid-name
 import os
 import re
 
@@ -140,8 +140,16 @@ def _get_ranges(vals):
     '''Convert list of integer to ranges.'''
     ranges = []
 
-    for _, b in itertools.groupby(enumerate(vals), lambda (x, y): y - x):
-        b = list(b)
-        ranges.append((b[0][1], b[-1][1]))
+    if vals:
+        sorted_vals = sorted(vals)
+
+        i = 0
+
+        for j in range(1, len(sorted_vals)):
+            if sorted_vals[j] > 1 + sorted_vals[j - 1]:
+                ranges.append((sorted_vals[i], sorted_vals[j - 1]))
+                i = j
+
+        ranges.append((sorted_vals[i], sorted_vals[-1]))
 
     return ranges

@@ -46,6 +46,7 @@ class ResultsThread(Thread):
         self.__update_summary()
 
         for name, df in self.__dfs.items():
+            print(dir_name, name)
             df.to_csv(os.path.join(dir_name, name + '.csv'))
 
     def close(self):
