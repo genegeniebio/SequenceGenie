@@ -9,6 +9,7 @@ All rights reserved.
 # pylint: disable=no-member
 # pylint: disable=no-name-in-module
 import sys
+
 from Bio import pairwise2
 from Bio.Seq import Seq
 from synbiochem.utils import seq_utils
@@ -54,9 +55,9 @@ def main(args):
 
                 resp = compare(barcode, seq_start)
 
-                print barcode + '\t' + seq_start + '\t' + str(resp)
+                print(barcode + '\t' + seq_start + '\t' + str(resp))
 
-        print
+        print()
 
 
 if __name__ == '__main__':

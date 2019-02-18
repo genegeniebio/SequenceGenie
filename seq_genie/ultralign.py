@@ -23,6 +23,7 @@ from synbiochem.utils import mut_utils, seq_utils
 
 import numpy as np
 
+
 _NUCL_IDX = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
 
 

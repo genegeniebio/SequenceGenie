@@ -9,7 +9,6 @@ All rights reserved.
 # pylint: disable=no-name-in-module
 # pylint: disable=superfluous-parens
 import os
-
 import subprocess
 import tempfile
 

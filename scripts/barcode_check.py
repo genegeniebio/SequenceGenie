@@ -45,7 +45,7 @@ def main(barcodes):
 
         tols.append(compare(random.choice(barcodes), seq))
 
-    print np.min(tols)
+    print(np.min(tols))
 
 
 if __name__ == '__main__':

@@ -8,6 +8,7 @@ All rights reserved.
 # pylint: disable=invalid-name
 import os
 from threading import Thread
+
 import numpy as np
 import pandas as pd
 
@@ -44,7 +45,7 @@ class ResultsThread(Thread):
         '''Write result output files.'''
         self.__update_summary()
 
-        for name, df in self.__dfs.iteritems():
+        for name, df in self.__dfs.items():
             df.to_csv(os.path.join(dir_name, name + '.csv'))
 
     def close(self):
@@ -74,7 +75,7 @@ class ResultsThread(Thread):
         self.__dfs['summary']['matched_ice_id'] = numerical_df.idxmax(axis=1)
         self.__dfs['summary']['identity'] = numerical_df.max(axis=1)
 
-        for name, df in self.__dfs.iteritems():
+        for name, df in self.__dfs.items():
             if name != 'summary':
                 self.__dfs['summary'][name] = \
                     df.lookup(df.index,

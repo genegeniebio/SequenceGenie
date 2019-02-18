@@ -5,6 +5,8 @@ All rights reserved.
 
 @author: neilswainston
 '''
+# pylint: disable=too-many-arguments
+# pylint: disable=too-many-locals
 import os
 
 from synbiochem.utils import ice_utils, seq_utils

@@ -7,11 +7,13 @@ All rights reserved.
 '''
 # pylint: disable=no-member
 # pylint: disable=no-name-in-module
+# pylint: disable=wrong-import-order
 import sys
 
 from Bio import SeqIO
-import pandas as pd
 from synbiochem.utils import seq_utils
+
+import pandas as pd
 
 
 def main(args):

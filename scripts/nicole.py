@@ -11,7 +11,6 @@ All rights reserved.
 import sys
 
 from Bio import SeqIO
-
 from synbiochem.utils import seq_utils
 
 
