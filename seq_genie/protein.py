@@ -7,6 +7,7 @@ All rights reserved.
 '''
 # pylint: disable=invalid-name
 # pylint: disable=too-few-public-methods
+# pylint: disable=too-many-arguments
 # pylint: disable=wrong-import-order
 from collections import defaultdict
 from operator import itemgetter
@@ -15,41 +16,64 @@ import sys
 
 from Bio import Seq, SeqIO
 from mpl_toolkits.mplot3d import Axes3D
-from pysal.inequality import gini
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-from seq_genie import utils
+from pysal.explore.inequality import gini
+import pysam
 from synbiochem.utils import mut_utils, seq_utils
 
+import matplotlib.pyplot as plt
+import multiprocessing as mp
+import numpy as np
+import pandas as pd
+from seq_genie import demultiplex, utils
 
-def align(templ_filename, reads_filename, filtr=False):
+
+def align(templ_filename, barcodes_filename, in_dir, out_dir, min_length=1000,
+          max_read_files=1e16, tolerance=0, filtr=False, search_len=16):
     '''Align sequence files.'''
-    reads = utils.get_reads(templ_filename)
-    templ_seq = reads[0]
-    reads_combined_filename = reads_filename + '.fasta'
-
-    with open(reads_combined_filename, 'w') as reads_file:
-        SeqIO.write(utils.get_reads(reads_filename), reads_file, 'fasta')
-
-    sam_filename = reads_filename + '_raw.sam'
-    align_filename = sam_filename
+    barcodes, _ = demultiplex.get_barcodes(barcodes_filename)
 
     utils.index(templ_filename)
 
-    utils.mem(templ_filename, reads_combined_filename,
+    barcode_reads = demultiplex.demultiplex(barcodes,
+                                            in_dir,
+                                            min_length,
+                                            max_read_files,
+                                            out_dir,
+                                            tolerance=tolerance,
+                                            num_threads=mp.cpu_count(),
+                                            search_len=search_len)
+
+    return [_align(templ_filename, barcode_reads[barcode], filtr)
+            for barcode in barcodes]
+
+
+def _align(templ_filename, reads_filename, filtr):
+    '''Align a single Fasta file.'''
+    name, _ = os.path.splitext(reads_filename)
+
+    sam_filename = name + '_raw.sam'
+    align_filename = sam_filename
+
+    utils.mem(templ_filename, reads_filename,
               out_filename=sam_filename,
               gap_open=12)
 
     if filtr:
         # Filter indels:
-        sam_filt_flename = reads_file + '_filtered.sam'
+        sam_filt_flename = name + '_filtered.sam'
         align_filename = sam_filt_flename
-        utils.reject_indels(sam_filename, templ_seq,
+        utils.reject_indels(sam_filename, _get_seq(templ_filename),
                             out_filename=sam_filt_flename)
 
     return align_filename
+
+
+def _get_seq(filename):
+    '''Get sequence from Fasta file.'''
+    for record in SeqIO.parse(filename, 'fasta'):
+        return record.seq
+
+    return None
 
 
 def analyse_dna_mut(sam_files, templ_seq):
@@ -87,7 +111,8 @@ def analyse_aa_mut(sam_files, templ_aa_seq):
 
     seqs_to_bins = defaultdict(list)
 
-    for sam_idx, sam_file in enumerate(sam_files):
+    for sam_idx, sam_filename in enumerate(sam_files):
+        sam_file = pysam.AlignmentFile(sam_filename, 'r')
         for read in sam_file:
             mut = _analyse_aa_mut(read, templ_aa_seq)
 
@@ -112,7 +137,9 @@ def _analyse_aa_mut(read, template_aa):
                 read_muts[pos] = aas[0]
 
         if len(read_muts) == 1:
-            return (read_muts.keys()[0], read_muts.values()[0], read_aa)
+            return (list(read_muts.keys())[0],
+                    list(read_muts.values())[0],
+                    read_aa)
 
         if not read_muts:
             return (None, None, read_aa)
@@ -197,11 +224,11 @@ def get_gini(muts):
 def main(args):
     '''main method.'''
     templ_filename = args[0]
-    templ_seq = list(utils.get_reads(templ_filename))[0].seq
+    templ_seq = _get_seq(templ_filename)
     templ_aa_seq = templ_seq.translate()
 
     # Align:
-    sam_files = align(templ_filename, args[1:], filtr=True)
+    sam_files = align(templ_filename, args[1], args[2], args[3])
 
     # Analyse:
     muts, seqs_to_bins = analyse_aa_mut(sam_files, templ_aa_seq)
