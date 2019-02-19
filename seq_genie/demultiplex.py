@@ -136,10 +136,8 @@ def _bin_seqs(reads_filename, min_length, max_barcode_len, search_len,
     for seq in seqs:
         if seq:
             for pairs in barcodes:
-                selected_barcodes = [None, None]
-
                 if _check_seq(seq, max_barcode_len, search_len, pairs,
-                              selected_barcodes, tolerance, write_queue):
+                              tolerance, write_queue):
                     barcode_seqs += 1
                     break
 
@@ -148,7 +146,7 @@ def _bin_seqs(reads_filename, min_length, max_barcode_len, search_len,
     return None
 
 
-def _check_seq(seq, max_barcode_len, search_len, pairs, selected_barcodes,
+def _check_seq(seq, max_barcode_len, search_len, pairs,
                tolerance, write_queue):
     '''Check sequence against barcode sequences.'''
     seq_len = min(max_barcode_len + search_len, len(seq))
@@ -157,8 +155,9 @@ def _check_seq(seq, max_barcode_len, search_len, pairs, selected_barcodes,
 
     # Check all barcodes:
     for orig, bc_pair in pairs.items():
-        _check_pair(orig, bc_pair, [seq_start, seq_end], seq_len,
-                    selected_barcodes, tolerance)
+        selected_barcodes = \
+            _check_pair(orig, bc_pair, [seq_start,
+                                        seq_end], seq_len, tolerance)
 
         if selected_barcodes[0] and selected_barcodes[1]:
             write_queue.put([tuple(selected_barcodes), seq])
@@ -167,15 +166,18 @@ def _check_seq(seq, max_barcode_len, search_len, pairs, selected_barcodes,
     return False
 
 
-def _check_pair(orig, pair, seqs, seq_len, selected_barcodes, tolerance):
+def _check_pair(orig, pair, seqs, seq_len, tolerance):
     '''Check similarity scores.'''
-    for idx in range(2):
-        if not selected_barcodes[idx]:
-            resp = _check_barcode(orig[idx], pair[idx], seqs[idx], seq_len,
-                                  tolerance)
+    selected_barcodes = [None, None]
 
-            if resp:
-                selected_barcodes[idx] = resp
+    for idx in range(2):
+        resp = _check_barcode(orig[idx], pair[idx], seqs[idx], seq_len,
+                              tolerance)
+
+        if resp:
+            selected_barcodes[idx] = resp
+
+    return selected_barcodes
 
 
 def _check_barcode(orig, barcode, seq, seq_len, tolerance):
