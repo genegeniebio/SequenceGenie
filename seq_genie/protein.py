@@ -14,13 +14,13 @@ All rights reserved.
 # pylint: disable=too-many-arguments
 # pylint: disable=unused-import
 # pylint: disable=wrong-import-order
-from collections import defaultdict
-from operator import itemgetter
+from collections import defaultdict, Counter
 import os
 import sys
 
 from Bio import Seq
 from mpl_toolkits.mplot3d import Axes3D
+# from pysal.explore.inequality import gini
 import pysam
 from synbiochem.utils import mut_utils, seq_utils
 
@@ -29,6 +29,7 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from seq_genie import demultiplex, utils
+
 
 INDELS_IGNORE = 0
 INDELS_REJECT = 1
@@ -148,7 +149,7 @@ def _analyse_aa_mut(read, template_aa):
     return None, None
 
 
-def plot_stacked(data):
+def plot_stacked(data, filename='stacked.png'):
     '''Plots mutant counts as stacked bar chart.'''
     mut_counts = [[len(pos) for pos in mut] for mut in data]
     plt_bars = []
@@ -165,17 +166,17 @@ def plot_stacked(data):
     plt.legend(plt_bars, ['Bin ' + str(idx + 1)
                           for idx in range(len(plt_bars))])
 
-    plt.show()
+    plt.savefig(filename)
 
 
-def plot_heatmap(seq_data, seq_len):
+def plot_heatmap(seq_data, seq_len, filename='heatmap.png'):
     '''Plot heatmap.'''
     df = pd.DataFrame(0.0, columns=seq_utils.AA_CODES.values(),
                       index=range(1, seq_len + 1))
 
     for seq_datum in seq_data:
-        for mut in seq_datum[1]:
-            df[mut.get_mut_res()][mut.get_pos()] = seq_datum[4]
+        for mut in seq_datum[0]:
+            df[mut.get_mut_res()][mut.get_pos()] = seq_datum[3]
 
     df = df.transpose()
     df = df.sort_index()
@@ -188,10 +189,10 @@ def plot_heatmap(seq_data, seq_len):
     plt.yticks(np.arange(0.5, len(df.index), 1), df.index)
     plt.xticks(np.arange(0, len(df.columns), 25))
     plt.colorbar(heatmap)
-    plt.show()
+    plt.savefig(filename)
 
 
-def plot3d(data):
+def plot3d(data, filename='3d.png'):
     '''Plots mutant counts in 3d.'''
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -205,7 +206,7 @@ def plot3d(data):
     ax.set_ylabel('Bin number')
     ax.set_zlabel('Number of mutations')
 
-    plt.show()
+    plt.savefig(filename)
 
 
 def get_gini(muts):
@@ -229,33 +230,44 @@ def main(args):
     templ_filename = args[0]
     templ_seq = utils.get_seq(templ_filename)
     templ_aa_seq = templ_seq.translate()
+    out_dir = args[3]
 
     # Align:
-    sam_files = align(templ_filename, args[1], args[2], args[3])
+    sam_files = align(templ_filename, args[1], args[2], out_dir)
 
     # Analyse:
     muts, seqs_to_bins = analyse_aa_mut(sam_files, templ_aa_seq)
 
     for seq, bins in seqs_to_bins.items():
-        seqs_to_bins[seq] = [seq,
-                             mut_utils.get_mutations(templ_aa_seq, seq),
-                             bins,
-                             len(bins),
-                             np.mean(bins),
-                             np.std(bins)]
+        bin_counts = {count + 1: 0 for count in range(len(sam_files))}
+        bin_counts.update(dict(Counter(bins)))
 
-    with open('seqs_to_bins.txt', 'w') as outfile:
-        for vals in sorted(seqs_to_bins.values(), key=itemgetter(1)):
-            outfile.write('\t'.join([str(val) for val in vals]) + '\n')
+        seqs_to_bins[seq] = \
+            [mut_utils.get_mutations(templ_aa_seq, seq)] + \
+            list(bin_counts.values()) + \
+            [len(bins),
+             np.mean(bins),
+             np.std(bins)]
 
-    with open('mutations_by_pos.txt', 'w') as outfile:
+    columns = ['mutations'] + list(bin_counts.keys()) + \
+        ['occurances', 'mean_bin', 'stddev_bin']
+    seq_to_bins_df = \
+        pd.DataFrame(list(seqs_to_bins.values()),
+                     columns=columns)
+
+    seq_to_bins_df.sort_values(['mean_bin', 'stddev_bin'],
+                               ascending=[False, True],
+                               inplace=True)
+
+    seq_to_bins_df.to_csv(os.path.join(out_dir, 'seqs_to_bins.csv'),
+                          index=False)
+
+    with open(os.path.join(out_dir, 'mutations_by_pos.txt'), 'w') as outfile:
         for idx, vals in enumerate(zip(templ_aa_seq, zip(*muts))):
             outfile.write('\t'.join([str(val)
                                      for val in [idx + 1, vals[0],
                                                  get_gini(vals)] +
                                      list(vals[1])]) + '\n')
-    # plot_stacked(muts)
-    plot_heatmap(seqs_to_bins.values(), len(templ_aa_seq))
 
 
 class MutProbs():
