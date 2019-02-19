@@ -14,7 +14,7 @@ from operator import itemgetter
 import os
 import sys
 
-from Bio import Seq, SeqIO
+from Bio import Seq
 from mpl_toolkits.mplot3d import Axes3D
 from pysal.explore.inequality import gini
 import pysam
@@ -26,9 +26,14 @@ import numpy as np
 import pandas as pd
 from seq_genie import demultiplex, utils
 
+INDELS_IGNORE = 0
+INDELS_REJECT = 1
+INDELS_REPLACE = 2
+
 
 def align(templ_filename, barcodes_filename, in_dir, out_dir, min_length=1000,
-          max_read_files=1e16, tolerance=0, filtr=False, search_len=16):
+          max_read_files=1e16, tolerance=0, indels=INDELS_REPLACE,
+          search_len=16):
     '''Align sequence files.'''
     barcodes, _ = demultiplex.get_barcodes(barcodes_filename)
 
@@ -43,37 +48,32 @@ def align(templ_filename, barcodes_filename, in_dir, out_dir, min_length=1000,
                                             num_threads=mp.cpu_count(),
                                             search_len=search_len)
 
-    return [_align(templ_filename, barcode_reads[barcode], filtr)
+    return [_align(templ_filename, barcode_reads[barcode], indels)
             for barcode in barcodes]
 
 
-def _align(templ_filename, reads_filename, filtr):
+def _align(templ_filename, reads_filename, indels):
     '''Align a single Fasta file.'''
     name, _ = os.path.splitext(reads_filename)
 
-    sam_filename = name + '_raw.sam'
-    align_filename = sam_filename
+    sam_filename_in = name + '_raw.sam'
+    align_filename = sam_filename_in
 
     utils.mem(templ_filename, reads_filename,
-              out_filename=sam_filename,
+              out_filename=sam_filename_in,
               gap_open=12)
 
-    if filtr:
+    if indels == INDELS_REJECT:
+        sam_filename_out = name + '_indels_reject.sam'
+        align_filename = sam_filename_out
+        utils.reject_indels(sam_filename_in, templ_filename, sam_filename_out)
+    elif indels == INDELS_REPLACE:
         # Filter indels:
-        sam_filt_flename = name + '_filtered.sam'
-        align_filename = sam_filt_flename
-        utils.reject_indels(sam_filename, _get_seq(templ_filename),
-                            out_filename=sam_filt_flename)
+        sam_filename_out = name + '_indels_replace.sam'
+        align_filename = sam_filename_out
+        utils.replace_indels(sam_filename_in, templ_filename, sam_filename_out)
 
     return align_filename
-
-
-def _get_seq(filename):
-    '''Get sequence from Fasta file.'''
-    for record in SeqIO.parse(filename, 'fasta'):
-        return record.seq
-
-    return None
 
 
 def analyse_dna_mut(sam_files, templ_seq):
@@ -111,20 +111,26 @@ def analyse_aa_mut(sam_files, templ_aa_seq):
 
     seqs_to_bins = defaultdict(list)
 
+    diff_lengths = [0]
+
     for sam_idx, sam_filename in enumerate(sam_files):
         sam_file = pysam.AlignmentFile(sam_filename, 'r')
+
         for read in sam_file:
-            mut = _analyse_aa_mut(read, templ_aa_seq)
+            mut = _analyse_aa_mut(read, templ_aa_seq, diff_lengths)
 
             if mut:
                 if mut[0]:
                     muts[sam_idx][mut[0]].append(mut[1])
+
                 seqs_to_bins[mut[2]].append(sam_idx + 1)
+
+    print('diff_lengths: %i' % diff_lengths[0])
 
     return muts, seqs_to_bins
 
 
-def _analyse_aa_mut(read, template_aa):
+def _analyse_aa_mut(read, template_aa, diff_lengths):
     '''Analyse amino acid mutations in a single read.'''
     read_dna = Seq.Seq(read.seq[read.qstart:read.qend])
     read_aa = read_dna.translate()
@@ -143,6 +149,8 @@ def _analyse_aa_mut(read, template_aa):
 
         if not read_muts:
             return (None, None, read_aa)
+    else:
+        diff_lengths[0] += 1
 
     return None
 
@@ -224,7 +232,7 @@ def get_gini(muts):
 def main(args):
     '''main method.'''
     templ_filename = args[0]
-    templ_seq = _get_seq(templ_filename)
+    templ_seq = utils.get_seq(templ_filename)
     templ_aa_seq = templ_seq.translate()
 
     # Align:

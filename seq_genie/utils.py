@@ -15,6 +15,7 @@ import tempfile
 from Bio import Seq, SeqIO, SeqRecord
 from pysam import Samfile, VariantFile
 from synbiochem.utils import io_utils
+from seq_genie import utils
 
 
 def index(filename):
@@ -88,14 +89,13 @@ def sort(in_filename, out_filename):
     return out_filename
 
 
-def reject_indels(sam_filename, templ_seq, out_filename=None):
+def reject_indels(sam_filename_in, templ_filename, sam_filename_out):
     '''Rejects indels.'''
-    out_filename = io_utils.get_filename(out_filename)
-
-    sam_file = Samfile(sam_filename, 'r')
-    out_file = Samfile(out_filename, 'wh',
+    sam_file = Samfile(sam_filename_in, 'r')
+    out_file = Samfile(sam_filename_out, 'wh',
                        template=sam_file,
                        header=sam_file.header)
+    templ_seq = get_seq(templ_filename)
 
     for read in sam_file:
         if read.cigarstring and str(len(templ_seq)) + 'M' in read.cigarstring:
@@ -103,17 +103,35 @@ def reject_indels(sam_filename, templ_seq, out_filename=None):
 
     out_file.close()
 
-    return out_filename
 
-
-def replace_indels(sam_filename, templ_seq, out_filename=None):
+def replace_indels(sam_filename_in, templ_filename, sam_filename_out):
     '''Replace indels, replacing them with wildtype.'''
-    out_filename = io_utils.get_filename(out_filename)
+    sam_filename_out = io_utils.get_filename(sam_filename_out)
+    templ_seq = get_seq(templ_filename)
+    records = []
 
-    with open(out_filename, 'w') as fle:
-        SeqIO.write(_replace_indels(sam_filename, templ_seq), fle, 'fasta')
+    for read in Samfile(sam_filename_in, 'r'):
+        # Perform mapping of nucl indices to remove spurious indels:
+        seq = ''.join([read.seq[pair[0]]
+                       if pair[0]
+                       else templ_seq[pair[1]]
+                       for pair in read.aligned_pairs
+                       if pair[1] is not None])
 
-    return out_filename
+        if seq:
+            records.append(SeqRecord.SeqRecord(Seq.Seq(seq), read.qname,
+                                               '', ''))
+
+    reads_filename = io_utils.get_filename(None)
+
+    with open(reads_filename, 'w') as fle:
+        SeqIO.write(records, fle, 'fasta')
+
+    utils.mem(templ_filename, reads_filename,
+              out_filename=sam_filename_out,
+              gap_open=12)
+
+    return sam_filename_out
 
 
 def get_dir(parent_dir, barcodes, ice_id=None):
@@ -129,17 +147,9 @@ def get_dir(parent_dir, barcodes, ice_id=None):
     return dir_name
 
 
-def _replace_indels(sam_filename, templ_seq):
-    '''Replace indels, replacing them with wildtype.'''
-    sam_file = Samfile(sam_filename, 'r')
+def get_seq(filename):
+    '''Get sequence from Fasta file.'''
+    for record in SeqIO.parse(filename, 'fasta'):
+        return record.seq
 
-    for read in sam_file:
-        # Perform mapping of nucl indices to remove spurious indels:
-        seq = ''.join([read.seq[pair[0]]
-                       if pair[0]
-                       else templ_seq[pair[1]]
-                       for pair in read.aligned_pairs
-                       if pair[1] is not None])
-
-        if seq:
-            yield SeqRecord.SeqRecord(Seq.Seq(seq), read.qname, '', '')
+    return None
