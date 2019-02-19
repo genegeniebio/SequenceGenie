@@ -6,8 +6,13 @@ All rights reserved.
 @author: neilswainston
 '''
 # pylint: disable=invalid-name
+# pylint: disable=no-member
+# pylint: disable=no-name-in-module
+# pylint: disable=old-style-class
+# pylint: disable=superfluous-parens
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
+# pylint: disable=unused-import
 # pylint: disable=wrong-import-order
 from collections import defaultdict
 from operator import itemgetter
@@ -16,7 +21,6 @@ import sys
 
 from Bio import Seq
 from mpl_toolkits.mplot3d import Axes3D
-from pysal.explore.inequality import gini
 import pysam
 from synbiochem.utils import mut_utils, seq_utils
 
@@ -32,7 +36,7 @@ INDELS_REPLACE = 2
 
 
 def align(templ_filename, barcodes_filename, in_dir, out_dir, min_length=1000,
-          max_read_files=1e16, tolerance=0, indels=INDELS_REPLACE,
+          max_read_files=1e16, tolerance=3, indels=INDELS_REPLACE,
           search_len=16):
     '''Align sequence files.'''
     barcodes, _ = demultiplex.get_barcodes(barcodes_filename)
@@ -106,31 +110,28 @@ def analyse_dna_mut(sam_files, templ_seq):
 
 def analyse_aa_mut(sam_files, templ_aa_seq):
     '''Analyse amino acid mutations.'''
-    muts = [[[] for _ in range(len(templ_aa_seq))]
-            for _ in range(len(sam_files))]
+    all_muts = [[[] for _ in range(len(templ_aa_seq))]
+                for _ in range(len(sam_files))]
 
     seqs_to_bins = defaultdict(list)
-
-    diff_lengths = [0]
 
     for sam_idx, sam_filename in enumerate(sam_files):
         sam_file = pysam.AlignmentFile(sam_filename, 'r')
 
         for read in sam_file:
-            mut = _analyse_aa_mut(read, templ_aa_seq, diff_lengths)
+            read_muts, read_aa = \
+                _analyse_aa_mut(read, templ_aa_seq)
 
-            if mut:
-                if mut[0]:
-                    muts[sam_idx][mut[0]].append(mut[1])
+            if read_muts is not None:
+                for pos, mut in read_muts.items():
+                    all_muts[sam_idx][pos].append(mut)
 
-                seqs_to_bins[mut[2]].append(sam_idx + 1)
+                seqs_to_bins[read_aa].append(sam_idx + 1)
 
-    print('diff_lengths: %i' % diff_lengths[0])
-
-    return muts, seqs_to_bins
+    return all_muts, seqs_to_bins
 
 
-def _analyse_aa_mut(read, template_aa, diff_lengths):
+def _analyse_aa_mut(read, template_aa):
     '''Analyse amino acid mutations in a single read.'''
     read_dna = Seq.Seq(read.seq[read.qstart:read.qend])
     read_aa = read_dna.translate()
@@ -138,21 +139,13 @@ def _analyse_aa_mut(read, template_aa, diff_lengths):
     if len(read_aa) == len(template_aa):
         read_muts = {}
 
-        for (pos, aas) in enumerate(list(zip(read_aa, template_aa))[:-1]):
+        for (pos, aas) in enumerate(list(zip(read_aa, template_aa))):
             if aas[0] != aas[1]:
                 read_muts[pos] = aas[0]
 
-        if len(read_muts) == 1:
-            return (list(read_muts.keys())[0],
-                    list(read_muts.values())[0],
-                    read_aa)
+        return read_muts, read_aa
 
-        if not read_muts:
-            return (None, None, read_aa)
-    else:
-        diff_lengths[0] += 1
-
-    return None
+    return None, None
 
 
 def plot_stacked(data):
@@ -217,6 +210,8 @@ def plot3d(data):
 
 def get_gini(muts):
     '''Get Gini value for each position.'''
+    from pysal.explore.inequality import gini
+
     scores = []
     mut_probs = MutProbs()
 

@@ -15,7 +15,6 @@ import tempfile
 from Bio import Seq, SeqIO, SeqRecord
 from pysam import Samfile, VariantFile
 from synbiochem.utils import io_utils
-from seq_genie import utils
 
 
 def index(filename):
@@ -127,9 +126,9 @@ def replace_indels(sam_filename_in, templ_filename, sam_filename_out):
     with open(reads_filename, 'w') as fle:
         SeqIO.write(records, fle, 'fasta')
 
-    utils.mem(templ_filename, reads_filename,
-              out_filename=sam_filename_out,
-              gap_open=12)
+    mem(templ_filename, reads_filename,
+        out_filename=sam_filename_out,
+        gap_open=12)
 
     return sam_filename_out
 
