@@ -37,7 +37,7 @@ INDELS_REPLACE = 2
 
 
 def align(templ_filename, barcodes_filename, in_dir, out_dir, min_length=1000,
-          max_read_files=1e16, tolerance=3, indels=INDELS_REPLACE,
+          max_read_files=1e16, tolerance=0, indels=INDELS_REJECT,
           search_len=16):
     '''Align sequence files.'''
     barcodes, _ = demultiplex.get_barcodes(barcodes_filename)
