@@ -24,7 +24,7 @@ class Test(unittest.TestCase):
 
     def test_demuliplex_complex_multi(self):
         '''Test demuliplex method.'''
-        self.__test_demuliplex_complex(1)
+        self.__test_demuliplex_complex(2)
 
     def __test_demuliplex_simple(self, num_threads):
         '''Test demuliplex method.'''
