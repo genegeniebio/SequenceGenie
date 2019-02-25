@@ -70,8 +70,12 @@ class ResultsThread(Thread):
         '''Update summary.'''
         self.__dfs['identity'].fillna(0, inplace=True)
 
-        numerical_df = self.__dfs['identity'].drop(
-            ['plate_idx'], axis=1).select_dtypes(include=[np.float])
+        numerical_df = self.__dfs['identity'].copy()
+
+        if 'plate_idx' in self.__dfs['identity'].columns:
+            numerical_df = numerical_df.drop(['plate_idx'], axis=1)
+
+        numerical_df = numerical_df.select_dtypes(include=[np.float])
 
         self.__dfs['summary']['matched_ice_id'] = numerical_df.idxmax(axis=1)
         self.__dfs['summary']['identity'] = numerical_df.max(axis=1)
