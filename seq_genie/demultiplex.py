@@ -161,6 +161,12 @@ def _check_seq(seq, max_barcode_len, search_len, pairs,
 
         if selected_barcodes[0] and selected_barcodes[1]:
             write_queue.put([tuple(selected_barcodes), seq])
+
+            if orig[0] == ''.join(bc_pair[0]):
+                write_queue.put([tuple(selected_barcodes + ['forward']), seq])
+            else:
+                write_queue.put([tuple(selected_barcodes + ['reverse']), seq])
+
             return True
 
     return False
