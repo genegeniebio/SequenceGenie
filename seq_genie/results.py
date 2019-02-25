@@ -20,7 +20,8 @@ class ResultsThread(Thread):
         self.__dfs = {}
 
         self.__dfs['summary'] = barcodes_df
-        self.__dfs['summary'].set_index(['forward', 'reverse'], inplace=True)
+        self.__dfs['summary'].set_index(['forward', 'reverse', 'barcode_type'],
+                                        inplace=True)
 
         # Initialise specific Dataframes:
         for name in ['mutations', 'indels', 'deletions', 'identity', 'depths']:
@@ -46,7 +47,6 @@ class ResultsThread(Thread):
         self.__update_summary()
 
         for name, df in self.__dfs.items():
-            print(dir_name, name)
             df.to_csv(os.path.join(dir_name, name + '.csv'))
 
     def close(self):
@@ -64,7 +64,7 @@ class ResultsThread(Thread):
     def __update_df(self, task):
         '''Update DataFrame.'''
         name, val, col_id, row_ids = task
-        self.__dfs[name][col_id].loc[row_ids[0], row_ids[1]] = val
+        self.__dfs[name][col_id].loc[row_ids[0], row_ids[1], row_ids[2]] = val
 
     def __update_summary(self):
         '''Update summary.'''

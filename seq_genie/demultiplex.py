@@ -76,7 +76,14 @@ def get_barcodes(filename):
     barcodes = \
         [tuple(pair) for pair in barcodes_df[['forward', 'reverse']].values]
 
-    return barcodes, barcodes_df
+    barcodes_dfs = []
+
+    for barcode_type in ['all', 'forward', 'reverse']:
+        barcode_type_df = barcodes_df.copy()
+        barcode_type_df['barcode_type'] = barcode_type
+        barcodes_dfs.append(barcode_type_df)
+
+    return barcodes, pd.concat(barcodes_dfs)
 
 
 def demultiplex(barcodes, in_dir, min_length, max_read_files, out_dir,
@@ -160,7 +167,7 @@ def _check_seq(seq, max_barcode_len, search_len, pairs,
                                         seq_end], seq_len, tolerance)
 
         if selected_barcodes[0] and selected_barcodes[1]:
-            write_queue.put([tuple(selected_barcodes), seq])
+            write_queue.put([tuple(selected_barcodes + ['all']), seq])
 
             if orig[0] == ''.join(bc_pair[0]):
                 write_queue.put([tuple(selected_barcodes + ['forward']), seq])
