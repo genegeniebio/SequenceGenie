@@ -96,9 +96,19 @@ def reject_indels(sam_filename_in, templ_filename, sam_filename_out):
                        header=sam_file.header)
     templ_seq = get_seq(templ_filename)
 
+    all_reads = 0
+    passed_reads = 0
+
     for read in sam_file:
+        all_reads += 1
+
         if read.cigarstring and str(len(templ_seq)) + 'M' in read.cigarstring:
             out_file.write(read)
+            passed_reads += 1
+
+    print('%s: %i/%i passed reject_indels filter' % (sam_filename_in,
+                                                     passed_reads,
+                                                     all_reads))
 
     out_file.close()
 
@@ -109,8 +119,12 @@ def replace_indels(sam_filename_in, templ_filename, sam_filename_out):
     templ_seq = get_seq(templ_filename)
     records = []
 
+    all_reads = 0
+
     for read in Samfile(sam_filename_in, 'r'):
         # Perform mapping of nucl indices to remove spurious indels:
+        all_reads += 1
+
         seq = ''.join([read.seq[pair[0]]
                        if pair[0]
                        else templ_seq[pair[1]]
@@ -129,6 +143,10 @@ def replace_indels(sam_filename_in, templ_filename, sam_filename_out):
     mem(templ_filename, reads_filename,
         out_filename=sam_filename_out,
         gap_open=12)
+
+    print('%s: %i/%i passed replace_indels filter' % (sam_filename_in,
+                                                      len(records),
+                                                      all_reads))
 
     return sam_filename_out
 
