@@ -39,50 +39,7 @@ def analyse(vcf_filename, target_id, src_id, dp_filter, write_queue):
         ['depths', max(depths) if depths else 0, target_id, src_id])
 
 
-def _analyse_vcf(vcf_filename, dp_filter):
-    '''Analyse vcf file, returning number of matches, mutations and
-    indels.'''
-    num_matches = 0
-    mutations = []
-    indels = []
-    deletions = []
-    consensus_seq = []
-    depths = []
-
-    df, templ_len = _vcf_to_df(vcf_filename)
-
-    for _, row in df.iterrows():
-        if 'INDEL' in row and row.INDEL:
-            indels.append(row['REF'] + str(row['POS']) + row['ALT'])
-        elif (dp_filter > 1 and row['DP'] > dp_filter) \
-                or row['DP_PROP'] > dp_filter:
-            alleles = [row['REF']] + row['ALT'].split(',')
-
-            # Extract QS values and order to find most-likely base:
-            qs = [float(val)
-                  for val in dict([term.split('=')
-                                   for term in row['INFO'].split(';')])
-                  ['QS'].split(',')]
-
-            # Compare most-likely base to reference:
-            hi_prob_base = alleles[np.argmax(qs)]
-            consensus_seq.append(hi_prob_base)
-
-            if row['REF'] != hi_prob_base:
-                mutations.append(row['REF'] + str(row['POS']) +
-                                 hi_prob_base + ' ' + str(max(qs)))
-            else:
-                num_matches += 1
-
-            depths.append(row['DP'])
-        else:
-            deletions.append(row['POS'])
-
-    return num_matches, mutations, indels, _get_ranges_str(deletions), \
-        templ_len, ''.join(consensus_seq), depths
-
-
-def _vcf_to_df(vcf_filename):
+def vcf_to_df(vcf_filename):
     '''Convert vcf to Pandas dataframe.'''
     data = []
     templ_len = float('NaN')
@@ -113,6 +70,49 @@ def _vcf_to_df(vcf_filename):
         df[['INDEL']] = df[['INDEL']].fillna(value=False)
 
     return df, templ_len
+
+
+def _analyse_vcf(vcf_filename, dp_filter):
+    '''Analyse vcf file, returning number of matches, mutations and
+    indels.'''
+    num_matches = 0
+    mutations = []
+    indels = []
+    deletions = []
+    consensus_seq = []
+    depths = []
+
+    df, templ_len = vcf_to_df(vcf_filename)
+
+    for _, row in df.iterrows():
+        if 'INDEL' in row and row.INDEL:
+            indels.append(row['REF'] + str(row['POS']) + row['ALT'])
+        elif (dp_filter > 1 and row['DP'] > dp_filter) \
+                or row['DP_PROP'] > dp_filter:
+            alleles = [row['REF']] + row['ALT'].split(',')
+
+            # Extract QS values and order to find most-likely base:
+            qs = [float(val)
+                  for val in dict([term.split('=')
+                                   for term in row['INFO'].split(';')])
+                  ['QS'].split(',')]
+
+            # Compare most-likely base to reference:
+            hi_prob_base = alleles[np.argmax(qs)]
+            consensus_seq.append(hi_prob_base)
+
+            if row['REF'] != hi_prob_base:
+                mutations.append(row['REF'] + str(row['POS']) +
+                                 hi_prob_base + ' ' + str(max(qs)))
+            else:
+                num_matches += 1
+
+            depths.append(row['DP'])
+        else:
+            deletions.append(row['POS'])
+
+    return num_matches, mutations, indels, _get_ranges_str(deletions), \
+        templ_len, ''.join(consensus_seq), depths
 
 
 def _expand_info(df):
