@@ -20,7 +20,7 @@ import pandas as pd
 def analyse(vcf_filename, target_id, src_id, dp_filter, write_queue):
     '''Analyse a given vcf file.'''
     num_matches, mutations, indels, deletions, templ_len, \
-        consensus_seq, depths = _analyse_vcf(vcf_filename, dp_filter)
+        consensus_seq, depths = analyse_vcf(vcf_filename, dp_filter)
 
     consensus_filename = os.path.join(os.path.dirname(vcf_filename),
                                       'consensus.fasta')
@@ -66,13 +66,15 @@ def vcf_to_df(vcf_filename):
         df['DP'] = df['DP'].astype(int)
         df['DP_PROP'] = df['DP'] / df['DP'].max()
 
-    if 'INDEL' in df.columns:
-        df[['INDEL']] = df[['INDEL']].fillna(value=False)
+    if 'INDEL' not in df.columns:
+        df[['INDEL']] = False
+
+    df[['INDEL']] = df[['INDEL']].fillna(value=False)
 
     return df, templ_len
 
 
-def _analyse_vcf(vcf_filename, dp_filter):
+def analyse_vcf(vcf_filename, dp_filter):
     '''Analyse vcf file, returning number of matches, mutations and
     indels.'''
     num_matches = 0
@@ -85,27 +87,33 @@ def _analyse_vcf(vcf_filename, dp_filter):
     df, templ_len = vcf_to_df(vcf_filename)
 
     for _, row in df.iterrows():
-        if 'INDEL' in row and row.INDEL:
-            indels.append(row['REF'] + str(row['POS']) + row['ALT'])
-        elif (dp_filter > 1 and row['DP'] > dp_filter) \
+        if (dp_filter > 1 and row['DP'] > dp_filter) \
                 or row['DP_PROP'] > dp_filter:
+
             alleles = [row['REF']] + row['ALT'].split(',')
 
             # Extract QS values and order to find most-likely base:
             qs = [float(val)
                   for val in dict([term.split('=')
-                                   for term in row['INFO'].split(';')])
+                                   for term in row['INFO'].split(';')
+                                   if '=' in term])
                   ['QS'].split(',')]
 
-            # Compare most-likely base to reference:
-            hi_prob_base = alleles[np.argmax(qs)]
-            consensus_seq.append(hi_prob_base)
+            # Compare most-likely term to reference:
+            prob_term = alleles[np.argmax(qs)]
 
-            if row['REF'] != hi_prob_base:
-                mutations.append(row['REF'] + str(row['POS']) +
-                                 hi_prob_base + ' ' + str(max(qs)))
+            if row.get('INDEL', False):
+                if row['REF'] != prob_term:
+                    indels.append((row['REF'] + str(row['POS']) + prob_term,
+                                   max(qs)))
             else:
-                num_matches += 1
+                consensus_seq.append(prob_term)
+
+                if row['REF'] != prob_term:
+                    mutations.append((row['REF'] + str(row['POS']) + prob_term,
+                                      max(qs)))
+                else:
+                    num_matches += 1
 
             depths.append(row['DP'])
         else:

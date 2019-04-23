@@ -26,7 +26,7 @@ import pandas as pd
 from seq_genie import demultiplex, ice, results, utils, vcf_utils
 
 
-class PathwayAligner(object):
+class PathwayAligner():
     '''Class to align NGS data to pathways.'''
 
     def __init__(self, out_dir, in_dir,
