@@ -12,6 +12,7 @@ All rights reserved.
 # pylint: disable=superfluous-parens
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-arguments
+# pylint: disable=too-many-locals
 # pylint: disable=unused-import
 # pylint: disable=wrong-import-order
 from collections import defaultdict, Counter
@@ -28,7 +29,7 @@ import matplotlib.pyplot as plt
 import multiprocessing as mp
 import numpy as np
 import pandas as pd
-from seq_genie import demultiplex, utils
+from sbc_ngs import demultiplex, utils
 
 
 INDELS_IGNORE = 0

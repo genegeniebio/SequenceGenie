@@ -6,7 +6,6 @@ All rights reserved.
 @author: neilswainston
 '''
 # pylint: disable=invalid-name
-# pylint: disable=superfluous-parens
 import sys
 
 from synbiochem.utils import seq_utils

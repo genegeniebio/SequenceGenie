@@ -5,12 +5,13 @@ All rights reserved.
 
 @author: neilswainston
 '''
+# pylint: disable=invalid-name
 from collections import defaultdict
 import os.path
 import sys
 
 import pandas as pd
-from seq_genie import vcf_utils
+from sbc_ngs import vcf_utils
 
 
 def analyse(dir_name):
